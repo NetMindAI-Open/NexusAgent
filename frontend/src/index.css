@@ -1,0 +1,1010 @@
+/* Google Fonts Import - MUST be at the top before other @import */
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Manrope:wght@300;400;500;600;700&family=Victor+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap');
+
+@import 'tailwindcss';
+
+/* ============================================================================
+   Design System: Bioluminescent Terminal
+   ============================================================================
+   A deep-sea inspired aesthetic with organic bioluminescent glows.
+   Think: Advanced AI control center in an underwater research station.
+   ============================================================================ */
+
+@theme {
+  /* Font System - unique font combination */
+  --font-display: 'Syne', system-ui, sans-serif;
+  --font-sans: 'Manrope', system-ui, sans-serif;
+  --font-mono: 'Victor Mono', 'Cascadia Code', monospace;
+
+  /* Bioluminescent Color Palette */
+  --color-cyan: #00ffd5;
+  --color-cyan-dim: #00b896;
+  --color-sky: #38bdf8;
+  --color-sky-bright: #7dd3fc;
+  --color-magenta: #ff006e;
+  --color-success: #00ff88;
+  --color-warning: #fbbf24;
+  --color-error: #ff4d6d;
+
+  /* Animation Keyframes */
+  @keyframes glow-pulse {
+    0%, 100% {
+      box-shadow: 0 0 20px var(--glow-color, rgba(0, 255, 213, 0.3)),
+                  0 0 40px var(--glow-color, rgba(0, 255, 213, 0.1));
+    }
+    50% {
+      box-shadow: 0 0 30px var(--glow-color, rgba(0, 255, 213, 0.5)),
+                  0 0 60px var(--glow-color, rgba(0, 255, 213, 0.2));
+    }
+  }
+
+  @keyframes float-gentle {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    50% { transform: translateY(-10px) rotate(1deg); }
+  }
+
+  @keyframes scan-line {
+    0% { transform: translateY(-100%); opacity: 0; }
+    50% { opacity: 0.5; }
+    100% { transform: translateY(100vh); opacity: 0; }
+  }
+
+  @keyframes data-stream {
+    0% { background-position: 0% 0%; }
+    100% { background-position: 0% 100%; }
+  }
+
+  @keyframes breathe {
+    0%, 100% { opacity: 0.5; transform: scale(1); }
+    50% { opacity: 0.8; transform: scale(1.02); }
+  }
+
+  @keyframes slide-up-fade {
+    from { opacity: 0; transform: translateY(24px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes slide-in-right {
+    from { opacity: 0; transform: translateX(24px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  @keyframes slide-in-left {
+    from { opacity: 0; transform: translateX(-24px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes scale-in {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+
+  @keyframes rotate-slow {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  @keyframes typing-blink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0; }
+  }
+
+  @keyframes gradient-flow {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+
+  @keyframes border-glow {
+    0%, 100% {
+      border-color: rgba(0, 255, 213, 0.3);
+      box-shadow: 0 0 10px rgba(0, 255, 213, 0.1);
+    }
+    50% {
+      border-color: rgba(0, 255, 213, 0.6);
+      box-shadow: 0 0 20px rgba(0, 255, 213, 0.2);
+    }
+  }
+
+  @keyframes particle-float {
+    0%, 100% {
+      transform: translateY(0) translateX(0);
+      opacity: 0.3;
+    }
+    25% {
+      transform: translateY(-20px) translateX(10px);
+      opacity: 0.6;
+    }
+    75% {
+      transform: translateY(-10px) translateX(-10px);
+      opacity: 0.4;
+    }
+  }
+
+  @keyframes ripple {
+    0% { transform: scale(0.8); opacity: 1; }
+    100% { transform: scale(2.5); opacity: 0; }
+  }
+}
+
+/* ============================================================================
+   Light Mode - clean light theme
+   ============================================================================ */
+:root {
+  --bg-deep: #f8fafb;
+  --bg-primary: #ffffff;
+  --bg-secondary: #f1f5f8;
+  --bg-tertiary: #e8eef3;
+  --bg-elevated: #ffffff;
+  --bg-sunken: #edf2f7;
+
+  --text-primary: #0a1628;
+  --text-secondary: #4a5568;
+  --text-tertiary: #8896a6;
+  --text-inverse: #ffffff;
+
+  --border-subtle: rgba(0, 0, 0, 0.06);
+  --border-default: rgba(0, 0, 0, 0.1);
+  --border-strong: rgba(0, 0, 0, 0.15);
+
+  --accent-primary: #0891b2;
+  --accent-secondary: #0ea5e9;
+  --accent-glow: rgba(8, 145, 178, 0.15);
+
+  --glass-bg: rgba(255, 255, 255, 0.85);
+  --glass-border: rgba(0, 0, 0, 0.08);
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.05), 0 2px 6px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.08), 0 4px 12px rgba(0, 0, 0, 0.04);
+  --shadow-glow: 0 0 40px rgba(8, 145, 178, 0.12);
+  --shadow-inset: inset 0 2px 4px rgba(0, 0, 0, 0.04);
+
+  --gradient-primary: linear-gradient(135deg, #0891b2 0%, #0ea5e9 100%);
+  --gradient-subtle: linear-gradient(180deg, rgba(8, 145, 178, 0.05) 0%, transparent 100%);
+  --gradient-card: linear-gradient(180deg, #ffffff 0%, #f8fafb 100%);
+
+  --code-bg: #f1f5f9;
+  --code-border: #e2e8f0;
+}
+
+/* ============================================================================
+   Dark Mode - deep-sea bioluminescent theme
+   ============================================================================ */
+.dark {
+  --bg-deep: #0a0a12;
+  --bg-primary: #0c0c18;
+  --bg-secondary: #12121f;
+  --bg-tertiary: #1a1a2a;
+  --bg-elevated: #1e1e32;
+  --bg-sunken: #0e0e18;
+
+  --text-primary: #f0f6fa;
+  --text-secondary: #b8c8d8;
+  --text-tertiary: #8899aa;
+  --text-inverse: #0a0a12;
+
+  --border-subtle: rgba(0, 255, 213, 0.12);
+  --border-default: rgba(0, 255, 213, 0.22);
+  --border-strong: rgba(0, 255, 213, 0.35);
+
+  --accent-primary: #00ffd5;
+  --accent-secondary: #60c8f0;
+  --accent-glow: rgba(0, 255, 213, 0.2);
+
+  --glass-bg: rgba(18, 18, 30, 0.85);
+  --glass-border: rgba(0, 255, 213, 0.25);
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.6);
+  --shadow-glow: 0 0 60px rgba(0, 255, 213, 0.25), 0 0 100px rgba(96, 200, 240, 0.15);
+  --shadow-inset: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+
+  --gradient-primary: linear-gradient(135deg, #00ffd5 0%, #60c8f0 100%);
+  --gradient-subtle: linear-gradient(180deg, rgba(0, 255, 213, 0.08) 0%, transparent 100%);
+  --gradient-card: linear-gradient(180deg, rgba(30, 30, 50, 1) 0%, rgba(18, 18, 30, 1) 100%);
+
+  --code-bg: #12121f;
+  --code-border: rgba(0, 255, 213, 0.18);
+
+  /* Brighter status colors for dark mode visibility */
+  --color-success: #22f088;
+  --color-warning: #fcd34d;
+  --color-error: #ff6b8a;
+}
+
+/* ============================================================================
+   Base Styles
+   ============================================================================ */
+* {
+  box-sizing: border-box;
+}
+
+html {
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg-deep);
+  color: var(--text-primary);
+  min-height: 100vh;
+  transition: background-color 0.5s ease, color 0.5s ease;
+  overflow-x: hidden;
+}
+
+/* Scan line effect in dark mode */
+.dark body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent-primary), transparent);
+  opacity: 0.3;
+  z-index: 9999;
+  pointer-events: none;
+  animation: scan-line 8s linear infinite;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ============================================================================
+   Typography
+   ============================================================================ */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+h1 { font-size: 2.5rem; font-weight: 800; }
+h2 { font-size: 2rem; }
+h3 { font-size: 1.5rem; }
+h4 { font-size: 1.25rem; }
+h5 { font-size: 1.1rem; }
+h6 { font-size: 1rem; }
+
+p {
+  margin: 0 0 1rem;
+  line-height: 1.75;
+}
+
+/* Monospace - data display font */
+.font-mono, code, pre, kbd {
+  font-family: var(--font-mono) !important;
+  font-size: 0.9em;
+  font-feature-settings: 'liga' on, 'calt' on;
+}
+
+/* Display font */
+.font-display {
+  font-family: var(--font-display) !important;
+}
+
+/* Text sizes */
+.text-xs { font-size: 0.8rem; line-height: 1.5; }
+.text-sm { font-size: 0.9rem; line-height: 1.5; }
+.text-base { font-size: 1rem; line-height: 1.6; }
+.text-lg { font-size: 1.125rem; line-height: 1.5; }
+.text-xl { font-size: 1.25rem; line-height: 1.4; }
+.text-2xl { font-size: 1.5rem; line-height: 1.3; }
+.text-3xl { font-size: 2rem; line-height: 1.2; }
+
+/* ============================================================================
+   Scrollbar - refined scrollbar styles
+   ============================================================================ */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 3px;
+  transition: background 0.2s;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-primary);
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-default) transparent;
+}
+
+/* ============================================================================
+   Glass & Effects
+   ============================================================================ */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid var(--glass-border);
+}
+
+.glow {
+  box-shadow: var(--shadow-glow);
+}
+
+.glow-text {
+  text-shadow: 0 0 20px var(--accent-primary), 0 0 40px var(--accent-primary);
+}
+
+.glow-border {
+  border-color: var(--accent-primary) !important;
+  box-shadow: 0 0 20px var(--accent-glow), inset 0 0 20px var(--accent-glow);
+}
+
+/* Gradient text */
+.gradient-text {
+  background: var(--gradient-primary);
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: gradient-flow 4s ease infinite;
+}
+
+/* Noise texture overlay */
+.noise-overlay::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%' height='100%' filter='url(%23noise)'/%3E%3C/svg%3E");
+  opacity: 0.03;
+  pointer-events: none;
+  mix-blend-mode: overlay;
+}
+
+/* ============================================================================
+   Animation Classes
+   ============================================================================ */
+.animate-slide-up {
+  animation: slide-up-fade 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slide-in-left {
+  animation: slide-in-left 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.4s ease-out forwards;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-glow-pulse {
+  animation: glow-pulse 3s ease-in-out infinite;
+}
+
+.animate-float {
+  animation: float-gentle 4s ease-in-out infinite;
+}
+
+.animate-breathe {
+  animation: breathe 4s ease-in-out infinite;
+}
+
+.animate-rotate-slow {
+  animation: rotate-slow 20s linear infinite;
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, var(--bg-secondary) 0%, var(--bg-tertiary) 50%, var(--bg-secondary) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 2s ease-in-out infinite;
+}
+
+.animate-typing-cursor::after {
+  content: '|';
+  color: var(--accent-primary);
+  animation: typing-blink 1s step-end infinite;
+}
+
+.animate-border-glow {
+  animation: border-glow 2s ease-in-out infinite;
+}
+
+.animate-ripple::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 2px solid var(--accent-primary);
+  animation: ripple 1.5s ease-out infinite;
+}
+
+/* Staggered animations */
+.stagger-1 { animation-delay: 0.05s; opacity: 0; }
+.stagger-2 { animation-delay: 0.1s; opacity: 0; }
+.stagger-3 { animation-delay: 0.15s; opacity: 0; }
+.stagger-4 { animation-delay: 0.2s; opacity: 0; }
+.stagger-5 { animation-delay: 0.25s; opacity: 0; }
+.stagger-6 { animation-delay: 0.3s; opacity: 0; }
+
+/* Hover effects */
+.hover-lift {
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease;
+}
+.hover-lift:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg), 0 0 30px var(--accent-glow);
+}
+
+.hover-glow {
+  transition: box-shadow 0.3s ease, border-color 0.3s ease;
+}
+.hover-glow:hover {
+  box-shadow: var(--shadow-glow);
+  border-color: var(--accent-primary);
+}
+
+.hover-scale {
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.hover-scale:hover {
+  transform: scale(1.02);
+}
+
+/* ============================================================================
+   Card Styles
+   ============================================================================ */
+.card {
+  background: var(--gradient-card);
+  border: 1px solid var(--border-default);
+  border-radius: 20px;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent-primary), transparent);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.card:hover {
+  box-shadow: var(--shadow-md), 0 0 40px var(--accent-glow);
+  border-color: var(--border-strong);
+}
+
+.card:hover::before {
+  opacity: 0.5;
+}
+
+/* ============================================================================
+   Markdown Styles
+   ============================================================================ */
+.markdown-content {
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.8;
+  color: var(--text-primary);
+}
+
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3,
+.markdown-content h4,
+.markdown-content h5,
+.markdown-content h6 {
+  font-family: var(--font-display);
+  margin-top: 1.5em;
+  margin-bottom: 0.75em;
+  font-weight: 700;
+}
+
+.markdown-content h1:first-child,
+.markdown-content h2:first-child,
+.markdown-content h3:first-child {
+  margin-top: 0;
+}
+
+.markdown-content h1 {
+  font-size: 1.75rem;
+  border-bottom: 2px solid var(--border-default);
+  padding-bottom: 0.5em;
+}
+.markdown-content h2 {
+  font-size: 1.5rem;
+  border-bottom: 1px solid var(--border-subtle);
+  padding-bottom: 0.3em;
+}
+.markdown-content h3 { font-size: 1.25rem; }
+.markdown-content h4 { font-size: 1.125rem; }
+
+.markdown-content p {
+  margin: 1em 0;
+}
+
+.markdown-content a {
+  color: var(--accent-primary);
+  text-decoration: none;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  border-bottom: 1px solid transparent;
+}
+
+.markdown-content a:hover {
+  border-bottom-color: var(--accent-primary);
+  text-shadow: 0 0 12px var(--accent-primary);
+}
+
+.markdown-content ul,
+.markdown-content ol {
+  margin: 1em 0;
+  padding-left: 1.75em;
+}
+
+.markdown-content li {
+  margin: 0.5em 0;
+}
+
+.markdown-content li::marker {
+  color: var(--accent-primary);
+}
+
+.markdown-content blockquote {
+  margin: 1.5em 0;
+  padding: 1em 1.5em;
+  border-left: 3px solid var(--accent-primary);
+  background: var(--accent-glow);
+  border-radius: 0 12px 12px 0;
+  font-style: italic;
+  color: var(--text-secondary);
+}
+
+.markdown-content code {
+  font-family: var(--font-mono) !important;
+  font-size: 0.9em;
+  padding: 0.2em 0.5em;
+  background: var(--code-bg);
+  border: 1px solid var(--code-border);
+  border-radius: 6px;
+  color: var(--accent-primary);
+}
+
+.markdown-content pre {
+  margin: 1.5em 0;
+  padding: 1.25em;
+  background: var(--code-bg);
+  border: 1px solid var(--code-border);
+  border-radius: 12px;
+  overflow-x: auto;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  position: relative;
+}
+
+.markdown-content pre::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
+  opacity: 0.5;
+}
+
+.markdown-content pre code {
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  font-size: inherit;
+}
+
+.markdown-content table {
+  width: 100%;
+  margin: 1.5em 0;
+  border-collapse: collapse;
+}
+
+.markdown-content th,
+.markdown-content td {
+  padding: 0.75em 1em;
+  border: 1px solid var(--border-default);
+  text-align: left;
+}
+
+.markdown-content th {
+  background: var(--bg-secondary);
+  font-weight: 600;
+  font-family: var(--font-display);
+}
+
+.markdown-content tr:nth-child(even) {
+  background: var(--bg-secondary);
+}
+
+.markdown-content hr {
+  margin: 2em 0;
+  border: none;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border-default), transparent);
+}
+
+.markdown-content strong {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.markdown-content img {
+  max-width: 100%;
+  border-radius: 12px;
+  margin: 1em 0;
+}
+
+/* ============================================================================
+   Status Colors
+   ============================================================================ */
+.status-pending {
+  color: var(--text-tertiary);
+}
+
+.status-running {
+  color: var(--accent-primary);
+}
+
+.status-completed {
+  color: var(--color-success);
+}
+
+.status-failed {
+  color: var(--color-error);
+}
+
+/* ============================================================================
+   Focus & Selection
+   ============================================================================ */
+*:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--accent-glow);
+  color: var(--text-primary);
+}
+
+.dark ::selection {
+  background: rgba(0, 255, 213, 0.3);
+}
+
+/* ============================================================================
+   Transitions
+   ============================================================================ */
+.transition-all {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.transition-fast {
+  transition: all 0.15s ease-out;
+}
+
+.transition-smooth {
+  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ============================================================================
+   Login Page Specific
+   ============================================================================ */
+.login-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-deep);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Background dynamic grid */
+.login-container::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--border-subtle) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border-subtle) 1px, transparent 1px);
+  background-size: 60px 60px;
+  animation: data-stream 30s linear infinite;
+}
+
+/* Center glow */
+.login-container::after {
+  content: '';
+  position: absolute;
+  width: 800px;
+  height: 800px;
+  background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  animation: breathe 6s ease-in-out infinite;
+}
+
+.login-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(32px) saturate(180%);
+  -webkit-backdrop-filter: blur(32px) saturate(180%);
+  border: 1px solid var(--glass-border);
+  border-radius: 28px;
+  padding: 3rem;
+  width: 100%;
+  max-width: 440px;
+  box-shadow: var(--shadow-lg), 0 0 80px var(--accent-glow);
+  position: relative;
+  z-index: 1;
+}
+
+.login-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 20%;
+  right: 20%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent-primary), transparent);
+}
+
+/* ============================================================================
+   Agent Item Styles
+   ============================================================================ */
+.agent-item {
+  padding: 1rem;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid transparent;
+  position: relative;
+  overflow: hidden;
+}
+
+.agent-item::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, var(--accent-glow), transparent);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.agent-item:hover {
+  background: var(--bg-secondary);
+  border-color: var(--border-default);
+}
+
+.agent-item:hover::before {
+  opacity: 0.5;
+}
+
+.agent-item.active {
+  background: var(--bg-elevated);
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 30px var(--accent-glow), inset 0 0 20px var(--accent-glow);
+}
+
+.agent-item.active::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 50%;
+  background: var(--accent-primary);
+  border-radius: 0 3px 3px 0;
+  box-shadow: 0 0 10px var(--accent-primary);
+}
+
+/* ============================================================================
+   Message Bubble Styles
+   ============================================================================ */
+.message-user {
+  background: var(--gradient-primary);
+  color: var(--text-inverse);
+  border-radius: 20px 20px 4px 20px;
+  box-shadow: var(--shadow-md), 0 0 20px var(--accent-glow);
+}
+
+.dark .message-user {
+  color: var(--bg-deep);
+}
+
+.message-assistant {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: 20px 20px 20px 4px;
+  position: relative;
+}
+
+.message-assistant::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, var(--accent-primary), transparent);
+  opacity: 0.3;
+}
+
+/* ============================================================================
+   Data Display Components
+   ============================================================================ */
+.data-label {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-tertiary);
+}
+
+.data-value {
+  font-family: var(--font-mono);
+  color: var(--accent-primary);
+}
+
+.data-card {
+  background: var(--bg-sunken);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 1rem;
+  position: relative;
+}
+
+.data-card::before {
+  content: '';
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 6px;
+  height: 6px;
+  background: var(--accent-primary);
+  border-radius: 50%;
+  box-shadow: 0 0 8px var(--accent-primary);
+  animation: typing-blink 2s ease-in-out infinite;
+}
+
+/* ============================================================================
+   Tab Styles
+   ============================================================================ */
+.tab-button {
+  position: relative;
+  padding: 0.5rem 1rem;
+  border-radius: 10px;
+  font-weight: 500;
+  transition: all 0.2s;
+  overflow: hidden;
+}
+
+.tab-button::before {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 2px;
+  background: var(--accent-primary);
+  transition: width 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.tab-button.active::before {
+  width: 60%;
+}
+
+.tab-button.active {
+  color: var(--accent-primary);
+  background: var(--accent-glow);
+}
+
+/* ============================================================================
+   Input Enhancement
+   ============================================================================ */
+.input-glow:focus {
+  box-shadow: 0 0 0 3px var(--accent-glow), 0 0 20px var(--accent-glow);
+}
+
+/* ============================================================================
+   Loading States
+   ============================================================================ */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--bg-secondary) 0%,
+    var(--bg-tertiary) 50%,
+    var(--bg-secondary) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: 8px;
+}
+
+/* ============================================================================
+   Particles Background (for special sections)
+   ============================================================================ */
+.particles-container {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.particle {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  background: var(--accent-primary);
+  border-radius: 50%;
+  opacity: 0.3;
+  animation: particle-float 6s ease-in-out infinite;
+}
+
+/* ============================================================================
+   Utility: Accent Variants
+   ============================================================================ */
+.accent-cyan {
+  --accent-primary: var(--color-cyan);
+  --accent-glow: rgba(0, 255, 213, 0.15);
+}
+
+.accent-sky {
+  --accent-primary: var(--color-sky);
+  --accent-glow: rgba(56, 189, 248, 0.15);
+}
+
+.accent-magenta {
+  --accent-primary: var(--color-magenta);
+  --accent-glow: rgba(255, 0, 110, 0.15);
+}

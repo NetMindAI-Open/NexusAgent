@@ -865,6 +865,7 @@ configure_env() {
 
     read -rp "    OPENAI_API_KEY: " val_openai
     read -rp "    GOOGLE_API_KEY: " val_google
+    read -rp "    NETMIND_API_KEY (optional, for EverMemOS, press Enter to skip): " val_netmind
     echo ""
 
     # If Docker MySQL is available, use Docker config by default
@@ -911,6 +912,7 @@ configure_env() {
 # =============================================================================
 OPENAI_API_KEY="${val_openai}"
 GOOGLE_API_KEY="${val_google}"
+NETMIND_API_KEY="${val_netmind}"
 
 # =============================================================================
 # Database (MySQL)
@@ -948,6 +950,7 @@ auto_generate_env() {
 # =============================================================================
 OPENAI_API_KEY=""
 GOOGLE_API_KEY=""
+NETMIND_API_KEY=""
 
 # =============================================================================
 # Database (MySQL) — Docker default config, no changes needed
@@ -977,11 +980,15 @@ EOF
     if [[ "$fill_keys" == "y" || "$fill_keys" == "Y" ]]; then
         read -rp "    OPENAI_API_KEY: " val_openai
         read -rp "    GOOGLE_API_KEY: " val_google
+        read -rp "    NETMIND_API_KEY (optional, for EverMemOS, press Enter to skip): " val_netmind
         if [ -n "$val_openai" ]; then
             sed_inplace "s|^OPENAI_API_KEY=.*|OPENAI_API_KEY=\"${val_openai}\"|" "$env_file"
         fi
         if [ -n "$val_google" ]; then
             sed_inplace "s|^GOOGLE_API_KEY=.*|GOOGLE_API_KEY=\"${val_google}\"|" "$env_file"
+        fi
+        if [ -n "$val_netmind" ]; then
+            sed_inplace "s|^NETMIND_API_KEY=.*|NETMIND_API_KEY=\"${val_netmind}\"|" "$env_file"
         fi
         success "API keys updated"
     else
@@ -995,6 +1002,12 @@ EOF
 configure_evermemos_env() {
     local env_file="${EVERMEMOS_DIR}/.env"
 
+    # Try to read NETMIND_API_KEY from project .env (set during install)
+    local netmind_api_key=""
+    if [ -f "${PROJECT_ROOT}/.env" ]; then
+        netmind_api_key=$(grep '^NETMIND_API_KEY=' "${PROJECT_ROOT}/.env" 2>/dev/null | sed 's/^NETMIND_API_KEY=//' | tr -d '"' || true)
+    fi
+
     echo ""
     echo -e "  ${BOLD}${G3}╔══════════════════════════════════════════════════╗${RESET}"
     echo -e "  ${BOLD}${G3}║           EverMemOS Configuration Wizard         ║${RESET}"
@@ -1004,42 +1017,134 @@ configure_evermemos_env() {
     echo -e "    ${DIM}boundary detection, memory extraction & semantic retrieval).${RESET}"
     echo -e "    ${DIM}All options below can be skipped by pressing Enter.${RESET}"
     echo ""
-    echo -e "    ${BOLD}Skip all${RESET}  → Keep template defaults (vLLM local mode),"
-    echo -e "               requires self-hosted vLLM inference service"
-    echo -e "    ${BOLD}Fill keys${RESET} → Use cloud API (OpenRouter / DeepInfra),"
-    echo -e "               no GPU needed, memory features available immediately"
-    echo ""
+
+    # If NETMIND_API_KEY is available, offer one-click auto-config
+    if [ -n "$netmind_api_key" ]; then
+        echo -e "    ${GREEN}✓ NetMind API Key detected from .env${RESET}"
+        echo ""
+        echo -e "    ${G1}[1]${RESET}  ${BOLD}Auto-configure with NetMind${RESET}  ${DIM}(Recommended, one-click setup)${RESET}"
+        echo -e "         ${DIM}LLM: DeepSeek-V3.2 | Embedding: bge-m3 | Rerank: Disabled${RESET}"
+        echo -e "    ${G3}[2]${RESET}  ${BOLD}Manual configuration${RESET}  ${DIM}(Choose providers individually)${RESET}"
+        echo ""
+        read -rp "    > " auto_choice
+        echo ""
+
+        if [[ "$auto_choice" != "2" ]]; then
+            # Auto-configure: NetMind LLM + Embedding, Rerank disabled
+            sed_inplace "s|^LLM_MODEL=.*|LLM_MODEL=deepseek-ai/DeepSeek-V3.2|" "$env_file"
+            sed_inplace "s|^LLM_BASE_URL=.*|LLM_BASE_URL=https://api.netmind.ai/inference-api/openai/v1|" "$env_file"
+            sed_inplace "s|^LLM_API_KEY=.*|LLM_API_KEY=${netmind_api_key}|" "$env_file"
+
+            sed_inplace "s|^VECTORIZE_PROVIDER=.*|VECTORIZE_PROVIDER=deepinfra|" "$env_file"
+            sed_inplace "s|^VECTORIZE_MODEL=.*|VECTORIZE_MODEL=BAAI/bge-m3|" "$env_file"
+            sed_inplace "s|^VECTORIZE_BASE_URL=.*|VECTORIZE_BASE_URL=https://api.netmind.ai/inference-api/openai/v1|" "$env_file"
+            sed_inplace "s|^VECTORIZE_API_KEY=.*|VECTORIZE_API_KEY=${netmind_api_key}|" "$env_file"
+
+            sed_inplace "s|^RERANK_PROVIDER=.*|RERANK_PROVIDER=none|" "$env_file"
+            sed_inplace "s|^RERANK_API_KEY=.*|RERANK_API_KEY=EMPTY|" "$env_file"
+            sed_inplace "s|^RERANK_BASE_URL=.*|RERANK_BASE_URL=|" "$env_file"
+            sed_inplace "s|^RERANK_MODEL=.*|RERANK_MODEL=|" "$env_file"
+            sed_inplace "s|^RERANK_FALLBACK_PROVIDER=.*|RERANK_FALLBACK_PROVIDER=none|" "$env_file"
+            sed_inplace "s|^RERANK_FALLBACK_API_KEY=.*|RERANK_FALLBACK_API_KEY=EMPTY|" "$env_file"
+            sed_inplace "s|^RERANK_FALLBACK_BASE_URL=.*|RERANK_FALLBACK_BASE_URL=|" "$env_file"
+
+            echo ""
+            success "EverMemOS auto-configured with NetMind (LLM + Embedding + Rerank disabled)"
+            echo -e "    ${DIM}Config file: ${env_file}${RESET}"
+            return
+        fi
+    else
+        echo -e "    ${BOLD}Skip all${RESET}  → Keep template defaults (vLLM local mode),"
+        echo -e "               requires self-hosted vLLM inference service"
+        echo -e "    ${BOLD}Fill keys${RESET} → Use cloud API (NetMind / OpenRouter / DeepInfra),"
+        echo -e "               no GPU needed, memory features available immediately"
+        echo ""
+    fi
+
     echo -e "    ${DIM}Config file: ${EVERMEMOS_DIR}/.env (can be edited manually anytime)${RESET}"
     echo ""
 
-    # ---- 1) LLM API Key ----
-    echo -e "    ${BOLD}${WHITE}[1/3] LLM API Key${RESET}"
-    echo -e "    ${DIM}Used for OpenRouter LLM calls for conversation boundary detection & memory extraction${RESET}"
-    echo -e "    ${DIM}  Fill in → Cloud calls via OpenRouter (e.g., grok-4-fast)${RESET}"
-    echo -e "    ${DIM}  Skip   → Keep placeholder, memory extraction unavailable until configured${RESET}"
+    # ---- 1) LLM service selection ----
+    echo -e "    ${BOLD}${WHITE}[1/3] LLM Service${RESET}"
+    echo -e "    ${DIM}Used for conversation boundary detection & memory extraction${RESET}"
     echo ""
-    read -rp "    LLM_API_KEY (OpenRouter Key): " val_llm_key
-    if [ -n "$val_llm_key" ]; then
-        sed_inplace "s|^LLM_API_KEY=.*|LLM_API_KEY=${val_llm_key}|" "$env_file"
-    fi
+    echo -e "    ${G1}[1]${RESET}  ${BOLD}NetMind${RESET}       ${DIM}(Recommended, DeepSeek-V3.2, \$0.27/\$0.4 per MToken)${RESET}"
+    echo -e "    ${G3}[2]${RESET}  ${BOLD}OpenRouter${RESET}    ${DIM}(grok-4-fast, requires OpenRouter key)${RESET}"
+    echo -e "    ${DIM}    Skip → Keep defaults (requires manual config)${RESET}"
+    echo ""
+    read -rp "    > " llm_choice
+    echo ""
+
+    case "$llm_choice" in
+        1)
+            # NetMind: DeepSeek-V3.2
+            sed_inplace "s|^LLM_MODEL=.*|LLM_MODEL=deepseek-ai/DeepSeek-V3.2|" "$env_file"
+            sed_inplace "s|^LLM_BASE_URL=.*|LLM_BASE_URL=https://api.netmind.ai/inference-api/openai/v1|" "$env_file"
+
+            if [ -n "$netmind_api_key" ]; then
+                sed_inplace "s|^LLM_API_KEY=.*|LLM_API_KEY=${netmind_api_key}|" "$env_file"
+                success "Reusing NetMind API Key from .env"
+            else
+                read -rp "    NetMind API Key (get from netmind.ai): " val_llm_key
+                if [ -n "$val_llm_key" ]; then
+                    sed_inplace "s|^LLM_API_KEY=.*|LLM_API_KEY=${val_llm_key}|" "$env_file"
+                    netmind_api_key="$val_llm_key"
+                fi
+            fi
+            ;;
+        2)
+            # OpenRouter: keep default model (grok-4-fast)
+            read -rp "    LLM_API_KEY (OpenRouter Key): " val_llm_key
+            if [ -n "$val_llm_key" ]; then
+                sed_inplace "s|^LLM_API_KEY=.*|LLM_API_KEY=${val_llm_key}|" "$env_file"
+            fi
+            ;;
+        *)
+            # Skip: if NetMind key available, auto-apply NetMind config
+            if [ -n "$netmind_api_key" ]; then
+                sed_inplace "s|^LLM_MODEL=.*|LLM_MODEL=deepseek-ai/DeepSeek-V3.2|" "$env_file"
+                sed_inplace "s|^LLM_BASE_URL=.*|LLM_BASE_URL=https://api.netmind.ai/inference-api/openai/v1|" "$env_file"
+                sed_inplace "s|^LLM_API_KEY=.*|LLM_API_KEY=${netmind_api_key}|" "$env_file"
+                info "Skipped — auto-applied NetMind config (DeepSeek-V3.2)"
+            else
+                info "Keeping LLM default config"
+            fi
+            ;;
+    esac
     echo ""
 
     # ---- 2) Embedding service selection ----
     echo -e "    ${BOLD}${WHITE}[2/3] Embedding (Vectorization) Service${RESET}"
     echo -e "    ${DIM}Converts memory text into vectors for semantic search${RESET}"
-    echo -e "    ${DIM}  [1] → Use DeepInfra cloud API, requires API Key, no GPU needed${RESET}"
-    echo -e "    ${DIM}  [2] → Use local vLLM service, requires self-hosted GPU deployment${RESET}"
-    echo -e "    ${DIM}  Skip → Keep default vLLM local mode, requires deployment first${RESET}"
     echo ""
-    echo -e "    ${G1}[1]${RESET}  ${BOLD}DeepInfra Cloud${RESET}  ${DIM}(Recommended, no GPU needed)${RESET}"
-    echo -e "    ${G3}[2]${RESET}  ${BOLD}vLLM Self-hosted${RESET} ${DIM}(Requires local GPU)${RESET}"
+    echo -e "    ${G1}[1]${RESET}  ${BOLD}NetMind${RESET}       ${DIM}(Recommended, bge-m3, no GPU needed)${RESET}"
+    echo -e "    ${G3}[2]${RESET}  ${BOLD}DeepInfra${RESET}     ${DIM}(Qwen3-Embedding-4B, requires DeepInfra key)${RESET}"
+    echo -e "    ${G3}[3]${RESET}  ${BOLD}vLLM${RESET}          ${DIM}(Self-hosted, requires local GPU)${RESET}"
+    echo -e "    ${DIM}    Skip → Keep defaults (vLLM local mode)${RESET}"
     echo ""
     read -rp "    > " embed_choice
     echo ""
 
     case "$embed_choice" in
         1)
-            # Primary: DeepInfra, fallback: vLLM
+            # NetMind: bge-m3
+            sed_inplace "s|^VECTORIZE_PROVIDER=.*|VECTORIZE_PROVIDER=deepinfra|" "$env_file"
+            sed_inplace "s|^VECTORIZE_MODEL=.*|VECTORIZE_MODEL=BAAI/bge-m3|" "$env_file"
+            sed_inplace "s|^VECTORIZE_BASE_URL=.*|VECTORIZE_BASE_URL=https://api.netmind.ai/inference-api/openai/v1|" "$env_file"
+            sed_inplace "s|^VECTORIZE_FALLBACK_PROVIDER=.*|VECTORIZE_FALLBACK_PROVIDER=none|" "$env_file"
+
+            if [ -n "$netmind_api_key" ]; then
+                sed_inplace "s|^VECTORIZE_API_KEY=.*|VECTORIZE_API_KEY=${netmind_api_key}|" "$env_file"
+                success "Reusing NetMind API Key"
+            else
+                read -rp "    NetMind API Key (get from netmind.ai): " val_vec_key
+                if [ -n "$val_vec_key" ]; then
+                    sed_inplace "s|^VECTORIZE_API_KEY=.*|VECTORIZE_API_KEY=${val_vec_key}|" "$env_file"
+                fi
+            fi
+            ;;
+        2)
+            # DeepInfra: Qwen3-Embedding-4B (original option 1)
             sed_inplace "s|^VECTORIZE_PROVIDER=.*|VECTORIZE_PROVIDER=deepinfra|" "$env_file"
             sed_inplace "s|^VECTORIZE_BASE_URL=.*|VECTORIZE_BASE_URL=https://api.deepinfra.com/v1/openai|" "$env_file"
             sed_inplace "s|^VECTORIZE_FALLBACK_PROVIDER=.*|VECTORIZE_FALLBACK_PROVIDER=vllm|" "$env_file"
@@ -1049,14 +1154,13 @@ configure_evermemos_env() {
                 sed_inplace "s|^VECTORIZE_API_KEY=.*|VECTORIZE_API_KEY=${val_vec_key}|" "$env_file"
             fi
 
-            # Fallback vLLM uses defaults
             read -rp "    Fallback vLLM URL [http://localhost:8000/v1]: " val_vec_fb_url
             val_vec_fb_url="${val_vec_fb_url:-http://localhost:8000/v1}"
             sed_inplace "s|^VECTORIZE_FALLBACK_BASE_URL=.*|VECTORIZE_FALLBACK_BASE_URL=${val_vec_fb_url}|" "$env_file"
             sed_inplace "s|^VECTORIZE_FALLBACK_API_KEY=.*|VECTORIZE_FALLBACK_API_KEY=EMPTY|" "$env_file"
             ;;
-        2)
-            # Primary: vLLM, fallback: DeepInfra
+        3)
+            # vLLM self-hosted (original option 2)
             sed_inplace "s|^VECTORIZE_PROVIDER=.*|VECTORIZE_PROVIDER=vllm|" "$env_file"
             sed_inplace "s|^VECTORIZE_API_KEY=.*|VECTORIZE_API_KEY=EMPTY|" "$env_file"
             sed_inplace "s|^VECTORIZE_FALLBACK_PROVIDER=.*|VECTORIZE_FALLBACK_PROVIDER=deepinfra|" "$env_file"
@@ -1072,27 +1176,37 @@ configure_evermemos_env() {
             sed_inplace "s|^VECTORIZE_FALLBACK_BASE_URL=.*|VECTORIZE_FALLBACK_BASE_URL=https://api.deepinfra.com/v1/openai|" "$env_file"
             ;;
         *)
-            info "Keeping Embedding default config (vLLM local, requires self-hosted deployment)"
+            # Skip: if NetMind key available, auto-apply NetMind config
+            if [ -n "$netmind_api_key" ]; then
+                sed_inplace "s|^VECTORIZE_PROVIDER=.*|VECTORIZE_PROVIDER=deepinfra|" "$env_file"
+                sed_inplace "s|^VECTORIZE_MODEL=.*|VECTORIZE_MODEL=BAAI/bge-m3|" "$env_file"
+                sed_inplace "s|^VECTORIZE_BASE_URL=.*|VECTORIZE_BASE_URL=https://api.netmind.ai/inference-api/openai/v1|" "$env_file"
+                sed_inplace "s|^VECTORIZE_API_KEY=.*|VECTORIZE_API_KEY=${netmind_api_key}|" "$env_file"
+                sed_inplace "s|^VECTORIZE_FALLBACK_PROVIDER=.*|VECTORIZE_FALLBACK_PROVIDER=none|" "$env_file"
+                info "Skipped — auto-applied NetMind config (bge-m3)"
+            else
+                info "Keeping Embedding default config (vLLM local, requires self-hosted deployment)"
+            fi
             ;;
     esac
     echo ""
 
-    # ---- 3) Rerank service selection ----
-    echo -e "    ${BOLD}${WHITE}[3/3] Rerank (Re-ranking) Service${RESET}"
-    echo -e "    ${DIM}Re-ranks retrieved memory fragments by relevance${RESET}"
-    echo -e "    ${DIM}  [1] → Use DeepInfra cloud API, requires API Key, no GPU needed${RESET}"
-    echo -e "    ${DIM}  [2] → Use local vLLM service, requires self-hosted GPU deployment${RESET}"
-    echo -e "    ${DIM}  Skip → Keep default vLLM local mode, requires deployment first${RESET}"
+    # ---- 3) Rerank service selection (optional) ----
+    echo -e "    ${BOLD}${WHITE}[3/3] Rerank Service (Optional)${RESET}"
+    echo -e "    ${DIM}Re-ranks retrieved memory fragments by relevance.${RESET}"
+    echo -e "    ${DIM}Not required — system uses RRF ranking without it.${RESET}"
     echo ""
-    echo -e "    ${G1}[1]${RESET}  ${BOLD}DeepInfra Cloud${RESET}  ${DIM}(Recommended, no GPU needed)${RESET}"
-    echo -e "    ${G3}[2]${RESET}  ${BOLD}vLLM Self-hosted${RESET} ${DIM}(Requires local GPU)${RESET}"
+    echo -e "    ${G1}[1]${RESET}  ${BOLD}Disable${RESET}       ${DIM}(Recommended, uses RRF ranking only — no extra cost)${RESET}"
+    echo -e "    ${G3}[2]${RESET}  ${BOLD}DeepInfra${RESET}     ${DIM}(Improves accuracy, requires DeepInfra key)${RESET}"
+    echo -e "    ${G3}[3]${RESET}  ${BOLD}vLLM${RESET}          ${DIM}(Self-hosted, requires local GPU)${RESET}"
+    echo -e "    ${DIM}    Skip → Disable rerank (recommended)${RESET}"
     echo ""
     read -rp "    > " rerank_choice
     echo ""
 
     case "$rerank_choice" in
-        1)
-            # Primary: DeepInfra, fallback: vLLM
+        2)
+            # DeepInfra (original option 1)
             sed_inplace "s|^RERANK_PROVIDER=.*|RERANK_PROVIDER=deepinfra|" "$env_file"
             sed_inplace "s|^RERANK_BASE_URL=.*|RERANK_BASE_URL=https://api.deepinfra.com/v1/inference|" "$env_file"
             sed_inplace "s|^RERANK_FALLBACK_PROVIDER=.*|RERANK_FALLBACK_PROVIDER=vllm|" "$env_file"
@@ -1102,14 +1216,13 @@ configure_evermemos_env() {
                 sed_inplace "s|^RERANK_API_KEY=.*|RERANK_API_KEY=${val_rr_key}|" "$env_file"
             fi
 
-            # Fallback vLLM uses defaults
             read -rp "    Fallback vLLM Rerank URL [http://localhost:12000/v1/rerank]: " val_rr_fb_url
             val_rr_fb_url="${val_rr_fb_url:-http://localhost:12000/v1/rerank}"
             sed_inplace "s|^RERANK_FALLBACK_BASE_URL=.*|RERANK_FALLBACK_BASE_URL=${val_rr_fb_url}|" "$env_file"
             sed_inplace "s|^RERANK_FALLBACK_API_KEY=.*|RERANK_FALLBACK_API_KEY=EMPTY|" "$env_file"
             ;;
-        2)
-            # Primary: vLLM, fallback: DeepInfra
+        3)
+            # vLLM self-hosted (original option 2)
             sed_inplace "s|^RERANK_PROVIDER=.*|RERANK_PROVIDER=vllm|" "$env_file"
             sed_inplace "s|^RERANK_API_KEY=.*|RERANK_API_KEY=EMPTY|" "$env_file"
             sed_inplace "s|^RERANK_FALLBACK_PROVIDER=.*|RERANK_FALLBACK_PROVIDER=deepinfra|" "$env_file"
@@ -1125,7 +1238,15 @@ configure_evermemos_env() {
             sed_inplace "s|^RERANK_FALLBACK_BASE_URL=.*|RERANK_FALLBACK_BASE_URL=https://api.deepinfra.com/v1/inference|" "$env_file"
             ;;
         *)
-            info "Keeping Rerank default config (vLLM local, requires self-hosted deployment)"
+            # Disable rerank (option 1, skip, or any other input)
+            sed_inplace "s|^RERANK_PROVIDER=.*|RERANK_PROVIDER=none|" "$env_file"
+            sed_inplace "s|^RERANK_API_KEY=.*|RERANK_API_KEY=EMPTY|" "$env_file"
+            sed_inplace "s|^RERANK_BASE_URL=.*|RERANK_BASE_URL=|" "$env_file"
+            sed_inplace "s|^RERANK_MODEL=.*|RERANK_MODEL=|" "$env_file"
+            sed_inplace "s|^RERANK_FALLBACK_PROVIDER=.*|RERANK_FALLBACK_PROVIDER=none|" "$env_file"
+            sed_inplace "s|^RERANK_FALLBACK_API_KEY=.*|RERANK_FALLBACK_API_KEY=EMPTY|" "$env_file"
+            sed_inplace "s|^RERANK_FALLBACK_BASE_URL=.*|RERANK_FALLBACK_BASE_URL=|" "$env_file"
+            info "Rerank disabled (using RRF ranking only)"
             ;;
     esac
 
@@ -1193,26 +1314,57 @@ do_run() {
     # --- Port conflict pre-check ---
     step "0.3" "Checking for port conflicts"
     local port_warnings=false
+    local conflict_ports=()
     if ! check_port_conflicts \
         "8000:FastAPI Backend" \
         "5173:Frontend Dev" \
         "7801:MCP Server"; then
         port_warnings=true
+        # Collect conflicting port PIDs for potential kill
+        for pair in "8000:FastAPI Backend" "5173:Frontend Dev" "7801:MCP Server"; do
+            local _port="${pair%%:*}"
+            if is_port_up "$_port"; then
+                conflict_ports+=("$_port")
+            fi
+        done
         echo ""
         warn "Some required ports are already in use (see above)."
         echo -e "    ${DIM}Services may fail to start if ports are occupied.${RESET}"
         echo ""
-        echo -e "    ${G1}[1]${RESET}  ${BOLD}Continue anyway${RESET}  ${DIM}(existing services may conflict)${RESET}"
-        echo -e "    ${G3}[2]${RESET}  ${BOLD}Abort${RESET}           ${DIM}(free the ports first, then retry)${RESET}"
+        echo -e "    ${G1}[1]${RESET}  ${BOLD}Kill & Continue${RESET}  ${DIM}(kill occupying processes, then start)${RESET}"
+        echo -e "    ${G3}[2]${RESET}  ${BOLD}Continue anyway${RESET}  ${DIM}(may conflict with existing services)${RESET}"
+        echo -e "    ${G5}[3]${RESET}  ${BOLD}Abort${RESET}           ${DIM}(return to menu)${RESET}"
         echo ""
         read -rp "    > " port_choice
-        if [[ "$port_choice" == "2" ]]; then
-            info "Aborted. Please free the occupied ports and try again."
-            read -rp "    Press Enter to return to menu..."
-            show_banner
-            show_menu
-            return
-        fi
+        case "$port_choice" in
+            1)
+                # Kill processes on conflicting ports
+                for _port in "${conflict_ports[@]}"; do
+                    local _pid=""
+                    if [ "$OS_TYPE" = "Darwin" ]; then
+                        _pid=$(lsof -iTCP:"$_port" -sTCP:LISTEN -P -n 2>/dev/null | awk 'NR==2{print $2}')
+                    else
+                        _pid=$(ss -tlnp 2>/dev/null | grep ":${_port} " | sed 's/.*pid=//' | sed 's/,.*//' | head -1)
+                    fi
+                    if [ -n "$_pid" ]; then
+                        kill "$_pid" 2>/dev/null && info "Killed PID $_pid on port $_port" || warn "Failed to kill PID $_pid on port $_port"
+                    fi
+                done
+                sleep 1
+                success "Conflicting processes cleared"
+                ;;
+            3)
+                info "Aborted. Returning to menu."
+                echo ""
+                read -rp "    Press Enter to return to menu..."
+                show_banner
+                show_menu
+                return
+                ;;
+            *)
+                info "Continuing with existing port conflicts..."
+                ;;
+        esac
     else
         success "No port conflicts detected (8000, 5173, 7801)"
     fi

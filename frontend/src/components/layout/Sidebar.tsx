@@ -244,7 +244,7 @@ export function Sidebar() {
               </div>
               <div>
                 <span className="font-[family-name:var(--font-display)] font-bold text-lg text-[var(--text-primary)] tracking-tight">
-                  Nexus<span className="text-[var(--accent-primary)]">Agent</span>
+                  Nexus<span className="text-[var(--accent-primary)]">Mind</span>
                 </span>
                 <p className="text-[10px] text-[var(--text-tertiary)] font-mono tracking-wider">INTELLIGENT AGENT PLATFORM</p>
               </div>

@@ -56,7 +56,7 @@ export const useConfigStore = create<ConfigState>()(
       setAgents: (agents) => set({ agents }),
     }),
     {
-      name: 'nexus-agent-config',
+      name: 'nexus-mind-config',
     }
   )
 );

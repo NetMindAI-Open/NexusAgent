@@ -77,7 +77,7 @@ export function LoginPage() {
           </div>
 
           <h1 className="text-3xl font-bold font-[family-name:var(--font-display)] text-[var(--text-primary)] mb-2 tracking-tight">
-            Nexus<span className="text-[var(--accent-primary)]">Agent</span>
+            Nexus<span className="text-[var(--accent-primary)]">Mind</span>
           </h1>
           <p className="text-[var(--text-secondary)] text-sm">Intelligent Agent Platform</p>
           <p className="text-[10px] text-[var(--text-tertiary)] font-mono tracking-[0.2em] uppercase mt-1">
@@ -157,7 +157,7 @@ export function LoginPage() {
         <div className="mt-10 pt-6 border-t border-[var(--border-subtle)]">
           <div className="flex items-center justify-center gap-2 text-xs text-[var(--text-tertiary)]">
             <Sparkles className="w-3.5 h-3.5 text-[var(--accent-primary)]" />
-            <span>Powered by NexusAgent</span>
+            <span>Powered by NexusMind</span>
           </div>
         </div>
       </div>

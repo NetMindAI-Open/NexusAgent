@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================================
-# NexusAgent Unified Entry Script
+# NexusMind Unified Entry Script
 #
 # One-click: Environment Install → Service Startup → Status Monitor → Stop
 #
@@ -20,7 +20,7 @@ set -uo pipefail
 # ============================================================================
 PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
 EVERMEMOS_DIR="${PROJECT_ROOT}/.evermemos"
-EVERMEMOS_REPO="git@github.com:NetMindAI-Open/EverMemOS.git"
+EVERMEMOS_REPO="https://github.com/NetMindAI-Open/EverMemOS.git"
 EVERMEMOS_BRANCH="main"
 TMUX_SESSION="xyz-dev"
 
@@ -51,6 +51,27 @@ get_port_occupant() {
         occupant=$(ss -tlnp 2>/dev/null | grep ":${port} " | sed 's/.*users:(("//' | sed 's/".*//' | head -1)
     fi
     echo "${occupant:-unknown process}"
+}
+
+# ============================================================================
+# Version comparison: check "actual" >= "required" (dotted version strings)
+#   Usage: version_gte "20.11.0" "20.10"  → returns 0 (true)
+#          version_gte "18.2.0"  "20.0"   → returns 1 (false)
+# Pure bash implementation, no sort -V (macOS BSD sort lacks -V)
+# ============================================================================
+version_gte() {
+    local actual="$1" required="$2"
+    local a1 a2 a3 r1 r2 r3
+    IFS='.' read -r a1 a2 a3 <<< "$actual"
+    IFS='.' read -r r1 r2 r3 <<< "$required"
+    a1=${a1:-0}; a2=${a2:-0}; a3=${a3:-0}
+    r1=${r1:-0}; r2=${r2:-0}; r3=${r3:-0}
+    if [ "$a1" -gt "$r1" ] 2>/dev/null; then return 0; fi
+    if [ "$a1" -lt "$r1" ] 2>/dev/null; then return 1; fi
+    if [ "$a2" -gt "$r2" ] 2>/dev/null; then return 0; fi
+    if [ "$a2" -lt "$r2" ] 2>/dev/null; then return 1; fi
+    if [ "$a3" -ge "$r3" ] 2>/dev/null; then return 0; fi
+    return 1
 }
 
 # ============================================================================
@@ -97,12 +118,12 @@ show_banner() {
     echo -e "${G1}    ██║ ╚████║${G2}███████╗${G3}██╔╝ ██╗${G4}╚██████╔╝${G5}███████║${RESET}"
     echo -e "${G1}    ╚═╝  ╚═══╝${G2}╚══════╝${G3}╚═╝  ╚═╝${G4} ╚═════╝ ${G5}╚══════╝${RESET}"
     echo ""
-    echo -e "${G3}       █████╗  ${G4} ██████╗ ${G5}███████╗${G6}███╗   ██╗████████╗${RESET}"
-    echo -e "${G3}      ██╔══██╗ ${G4}██╔════╝ ${G5}██╔════╝${G6}████╗  ██║╚══██╔══╝${RESET}"
-    echo -e "${G3}      ███████║ ${G4}██║  ███╗${G5}█████╗  ${G6}██╔██╗ ██║   ██║   ${RESET}"
-    echo -e "${G3}      ██╔══██║ ${G4}██║   ██║${G5}██╔══╝  ${G6}██║╚██╗██║   ██║   ${RESET}"
-    echo -e "${G3}      ██║  ██║ ${G4}╚██████╔╝${G5}███████╗${G6}██║ ╚████║   ██║   ${RESET}"
-    echo -e "${G3}      ╚═╝  ╚═╝ ${G4} ╚═════╝ ${G5}╚══════╝${G6}╚═╝  ╚═══╝   ╚═╝   ${RESET}"
+    echo -e "${G3}    ███╗   ███╗${G4}██╗${G5}███╗   ██╗${G6}██████╗ ${RESET}"
+    echo -e "${G3}    ████╗ ████║${G4}██║${G5}████╗  ██║${G6}██╔══██╗${RESET}"
+    echo -e "${G3}    ██╔████╔██║${G4}██║${G5}██╔██╗ ██║${G6}██║  ██║${RESET}"
+    echo -e "${G3}    ██║╚██╔╝██║${G4}██║${G5}██║╚██╗██║${G6}██║  ██║${RESET}"
+    echo -e "${G3}    ██║ ╚═╝ ██║${G4}██║${G5}██║ ╚████║${G6}██████╔╝${RESET}"
+    echo -e "${G3}    ╚═╝     ╚═╝${G4}╚═╝${G5}╚═╝  ╚═══╝${G6}╚═════╝ ${RESET}"
     echo ""
     echo -e "${DIM}    ─────────────────────────────────────────────────${RESET}"
     echo -e "${DIM}      Modular Agent Framework with Long-term Memory${RESET}"
@@ -205,15 +226,12 @@ check_docker_health() {
     docker_version=$($DOCKER_CMD version --format '{{.Server.Version}}' 2>/dev/null || echo "unknown")
 
     if [ "$docker_version" != "unknown" ]; then
-        local major minor
-        major=$(echo "$docker_version" | cut -d. -f1)
-        minor=$(echo "$docker_version" | cut -d. -f2)
-        if [ "${major:-0}" -lt 20 ] || { [ "${major:-0}" -eq 20 ] && [ "${minor:-0}" -lt 10 ]; }; then
-            warn "Docker version $docker_version is outdated (minimum recommended: 20.10)"
-            info "  Some features may not work correctly. Please upgrade Docker."
-            has_warning=true
-        else
+        if version_gte "$docker_version" "20.10"; then
             success "Docker version: $docker_version"
+        else
+            fail "Docker version $docker_version is too old (minimum required: 20.10)"
+            info "  Please upgrade Docker: https://docs.docker.com/engine/install/"
+            has_critical=true
         fi
     else
         warn "Could not determine Docker version"
@@ -553,7 +571,10 @@ do_install() {
     echo ""
     echo -e "    ${G1}[1]${RESET}  ${BOLD}Linux${RESET}     Ubuntu / Debian / CentOS etc."
     echo -e "    ${G3}[2]${RESET}  ${BOLD}macOS${RESET}     Intel / Apple Silicon"
-    echo -e "    ${G5}[3]${RESET}  ${BOLD}Windows${RESET}   Via WSL2"
+    echo -e "    ${G5}[3]${RESET}  ${BOLD}Windows${RESET}   ${YELLOW}Requires WSL2${RESET} — run inside WSL2 terminal"
+    echo ""
+    echo -e "    ${DIM}Windows users: WSL2 must be installed before proceeding.${RESET}"
+    echo -e "    ${DIM}Install WSL2 in PowerShell (Admin): ${WHITE}wsl --install${RESET}"
     echo ""
     read -rp "    > " os_choice
     echo ""
@@ -598,7 +619,7 @@ do_install() {
             ;;
     esac
 
-    local total_steps=9
+    local total_steps=10
     local current=0
 
     # --- Step 1: uv ---
@@ -619,7 +640,46 @@ do_install() {
         fi
     fi
 
-    # --- Step 2: Docker ---
+    # --- Step 2: Python (>= 3.13 required) ---
+    current=$((current + 1))
+    step "${current}/${total_steps}" "Checking Python (>= 3.13 required)"
+    local python_ver=""
+    # Prefer uv-managed python, then system python3, then python
+    if command -v uv &>/dev/null; then
+        python_ver=$(uv python find 3.13 2>/dev/null | xargs -I{} {} --version 2>/dev/null | awk '{print $2}' || true)
+    fi
+    if [ -z "$python_ver" ] && command -v python3 &>/dev/null; then
+        python_ver=$(python3 --version 2>/dev/null | awk '{print $2}')
+    fi
+    if [ -z "$python_ver" ] && command -v python &>/dev/null; then
+        python_ver=$(python --version 2>/dev/null | awk '{print $2}')
+    fi
+
+    if [ -n "$python_ver" ] && version_gte "$python_ver" "3.13"; then
+        success "Python version: ${python_ver}"
+    elif [ -n "$python_ver" ]; then
+        warn "Python ${python_ver} found but >= 3.13 is required"
+        if command -v uv &>/dev/null; then
+            info "Installing Python 3.13 via uv..."
+            uv python install 3.13
+            success "Python 3.13 installed via uv"
+        else
+            fail "Please install Python >= 3.13 manually: https://www.python.org/downloads/"
+            read -rp "    Press Enter to continue (uv sync will likely fail)..."
+        fi
+    else
+        warn "Python not found"
+        if command -v uv &>/dev/null; then
+            info "Installing Python 3.13 via uv..."
+            uv python install 3.13
+            success "Python 3.13 installed via uv"
+        else
+            fail "Please install Python >= 3.13 manually: https://www.python.org/downloads/"
+            read -rp "    Press Enter to continue (uv sync will likely fail)..."
+        fi
+    fi
+
+    # --- Step 3: Docker (>= 20.10 required) ---
     current=$((current + 1))
     step "${current}/${total_steps}" "Checking Docker"
 
@@ -672,46 +732,115 @@ do_install() {
         esac
     fi
 
-    # --- Step 3: Node.js ---
+    # --- Step 4: Node.js (>= 20 required) ---
     current=$((current + 1))
-    step "${current}/${total_steps}" "Checking Node.js"
+    step "${current}/${total_steps}" "Checking Node.js (>= 20 required)"
+
+    local need_node_install=false
     if command -v node &>/dev/null; then
-        success "Node.js is installed: $(node --version)"
-    else
-        case "$INSTALL_OS" in
-            linux)
-                info "Installing Node.js 20.x (apt)..."
-                if command -v apt-get &>/dev/null; then
-                    curl -fsSL https://deb.nodesource.com/setup_20.x | sudo bash -
-                    sudo apt-get install -y nodejs
-                elif command -v yum &>/dev/null; then
-                    curl -fsSL https://rpm.nodesource.com/setup_20.x | sudo bash -
-                    sudo yum install -y nodejs
-                else
-                    warn "Cannot auto-install Node.js. Please install manually: https://nodejs.org/"
-                    read -rp "    Press Enter to continue..."
-                fi
-                ;;
-            macos)
-                if command -v brew &>/dev/null; then
-                    info "Installing Node.js 20 (Homebrew)..."
-                    brew install node@20
-                    # Ensure node@20 is in PATH
-                    brew link --overwrite node@20 2>/dev/null || true
-                else
-                    warn "Homebrew not detected. Please install Homebrew or Node.js manually."
-                    echo -e "    ${DIM}Install Homebrew:${RESET} ${WHITE}/bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"${RESET}"
-                    echo -e "    ${DIM}Or install Node.js directly:${RESET} ${WHITE}https://nodejs.org/${RESET}"
-                    read -rp "    Press Enter to continue..."
-                fi
-                ;;
-        esac
-        if command -v node &>/dev/null; then
-            success "Node.js installed successfully: $(node --version)"
+        local node_ver
+        node_ver=$(node --version 2>/dev/null | sed 's/^v//')
+        if version_gte "$node_ver" "20.0.0"; then
+            success "Node.js version: v${node_ver}"
+        else
+            fail "Node.js v${node_ver} is too old (minimum required: v20)"
+            need_node_install=true
         fi
+    else
+        fail "Node.js is not installed"
+        need_node_install=true
     fi
 
-    # --- Step 4: tmux ---
+    if [ "$need_node_install" = true ]; then
+        echo ""
+        echo -e "    ${BOLD}${WHITE}Install Node.js 20 automatically?${RESET}"
+        echo ""
+        echo -e "    ${G1}[1]${RESET}  ${BOLD}Yes, install for me${RESET}  ${DIM}(Recommended)${RESET}"
+        echo -e "    ${G3}[2]${RESET}  ${BOLD}No, I will install it myself${RESET}"
+        echo ""
+        read -rp "    > " node_install_choice
+        echo ""
+
+        case "$node_install_choice" in
+            1)
+                case "$INSTALL_OS" in
+                    linux)
+                        if command -v apt-get &>/dev/null; then
+                            info "Installing Node.js 20.x via NodeSource (apt)..."
+                            curl -fsSL https://deb.nodesource.com/setup_20.x | sudo bash -
+                            sudo apt-get install -y nodejs
+                        elif command -v yum &>/dev/null; then
+                            info "Installing Node.js 20.x via NodeSource (yum)..."
+                            curl -fsSL https://rpm.nodesource.com/setup_20.x | sudo bash -
+                            sudo yum install -y nodejs
+                        else
+                            warn "Cannot auto-install: unsupported package manager"
+                            echo -e "    ${DIM}Please install Node.js 20 manually: https://nodejs.org/${RESET}"
+                            read -rp "    Press Enter to continue..."
+                        fi
+                        ;;
+                    macos)
+                        if command -v brew &>/dev/null; then
+                            info "Installing Node.js 20 via Homebrew..."
+                            brew install node@20
+                            brew link --overwrite node@20 2>/dev/null || true
+                        else
+                            # No brew: download official .pkg installer
+                            info "Downloading Node.js 20 installer from nodejs.org..."
+                            local node_arch="x64"
+                            [ "$(uname -m)" = "arm64" ] && node_arch="arm64"
+                            local node_tmpdir="/tmp/node_install_$$"
+                            mkdir -p "$node_tmpdir"
+
+                            # Get the latest v20.x pkg filename
+                            local pkg_file
+                            pkg_file=$(curl -fsSL https://nodejs.org/dist/latest-v20.x/ \
+                                | grep -oE "node-v[0-9]+\.[0-9]+\.[0-9]+-darwin-${node_arch}\.pkg" \
+                                | head -1)
+
+                            if [ -z "$pkg_file" ]; then
+                                fail "Could not determine Node.js download URL"
+                                echo -e "    ${DIM}Please install manually: https://nodejs.org/${RESET}"
+                                rm -rf "$node_tmpdir"
+                                read -rp "    Press Enter to continue..."
+                            else
+                                local pkg_url="https://nodejs.org/dist/latest-v20.x/${pkg_file}"
+                                info "Downloading ${pkg_file}..."
+                                curl -fSL -o "${node_tmpdir}/${pkg_file}" "$pkg_url"
+                                info "Installing (may require password)..."
+                                sudo installer -pkg "${node_tmpdir}/${pkg_file}" -target /
+                                # Clean up downloaded installer
+                                rm -rf "$node_tmpdir"
+                                success "Installer cleaned up"
+                            fi
+                        fi
+                        ;;
+                esac
+
+                # Verify installation
+                if command -v node &>/dev/null; then
+                    local new_node_ver
+                    new_node_ver=$(node --version 2>/dev/null | sed 's/^v//')
+                    if version_gte "$new_node_ver" "20.0.0"; then
+                        success "Node.js v${new_node_ver} installed successfully"
+                    else
+                        fail "Node.js installed but version v${new_node_ver} is still too old"
+                        read -rp "    Press Enter to continue (frontend will likely fail)..."
+                    fi
+                else
+                    fail "Node.js installation failed"
+                    read -rp "    Press Enter to continue (frontend will likely fail)..."
+                fi
+                ;;
+            *)
+                echo -e "    ${DIM}Please install Node.js >= 20 before running services.${RESET}"
+                echo -e "    ${DIM}Recommended: https://nodejs.org/ or nvm install 20${RESET}"
+                read -rp "    Press Enter to continue..."
+                ;;
+        esac
+    fi
+
+    # --- Step 5: tmux ---
     current=$((current + 1))
     step "${current}/${total_steps}" "Checking tmux"
     if command -v tmux &>/dev/null; then
@@ -744,7 +873,7 @@ do_install() {
         fi
     fi
 
-    # --- Step 5: Claude CLI (required) ---
+    # --- Step 6: Claude CLI (required) ---
     current=$((current + 1))
     step "${current}/${total_steps}" "Checking Claude CLI (core dependency)"
     if command -v claude &>/dev/null; then
@@ -784,7 +913,7 @@ do_install() {
         fi
     fi
 
-    # --- Step 6: Python dependencies ---
+    # --- Step 7: Python dependencies ---
     current=$((current + 1))
     step "${current}/${total_steps}" "Installing Python dependencies"
     if command -v uv &>/dev/null; then
@@ -796,7 +925,7 @@ do_install() {
         fail "uv is not available, cannot install Python dependencies"
     fi
 
-    # --- Step 7: Frontend dependencies ---
+    # --- Step 8: Frontend dependencies ---
     current=$((current + 1))
     step "${current}/${total_steps}" "Installing frontend dependencies"
     if [ -d "${PROJECT_ROOT}/frontend" ] && command -v npm &>/dev/null; then
@@ -809,12 +938,12 @@ do_install() {
         warn "Frontend directory not found or npm not available, skipping"
     fi
 
-    # --- Step 8: MySQL Docker ---
+    # --- Step 9: MySQL Docker ---
     current=$((current + 1))
     step "${current}/${total_steps}" "Starting MySQL database (Docker)"
     ensure_mysql
 
-    # --- Step 9: .env configuration ---
+    # --- Step 10: .env configuration ---
     current=$((current + 1))
     step "${current}/${total_steps}" "Configuring environment variables (.env)"
     if [ -f "${PROJECT_ROOT}/.env" ]; then
@@ -865,6 +994,7 @@ configure_env() {
 
     read -rp "    OPENAI_API_KEY: " val_openai
     read -rp "    GOOGLE_API_KEY: " val_google
+    read -rp "    NETMIND_API_KEY (optional, for EverMemOS, press Enter to skip): " val_netmind
     echo ""
 
     # If Docker MySQL is available, use Docker config by default
@@ -911,6 +1041,7 @@ configure_env() {
 # =============================================================================
 OPENAI_API_KEY="${val_openai}"
 GOOGLE_API_KEY="${val_google}"
+NETMIND_API_KEY="${val_netmind}"
 
 # =============================================================================
 # Database (MySQL)
@@ -948,6 +1079,7 @@ auto_generate_env() {
 # =============================================================================
 OPENAI_API_KEY=""
 GOOGLE_API_KEY=""
+NETMIND_API_KEY=""
 
 # =============================================================================
 # Database (MySQL) — Docker default config, no changes needed
@@ -977,11 +1109,15 @@ EOF
     if [[ "$fill_keys" == "y" || "$fill_keys" == "Y" ]]; then
         read -rp "    OPENAI_API_KEY: " val_openai
         read -rp "    GOOGLE_API_KEY: " val_google
+        read -rp "    NETMIND_API_KEY (optional, for EverMemOS, press Enter to skip): " val_netmind
         if [ -n "$val_openai" ]; then
             sed_inplace "s|^OPENAI_API_KEY=.*|OPENAI_API_KEY=\"${val_openai}\"|" "$env_file"
         fi
         if [ -n "$val_google" ]; then
             sed_inplace "s|^GOOGLE_API_KEY=.*|GOOGLE_API_KEY=\"${val_google}\"|" "$env_file"
+        fi
+        if [ -n "$val_netmind" ]; then
+            sed_inplace "s|^NETMIND_API_KEY=.*|NETMIND_API_KEY=\"${val_netmind}\"|" "$env_file"
         fi
         success "API keys updated"
     else
@@ -995,6 +1131,12 @@ EOF
 configure_evermemos_env() {
     local env_file="${EVERMEMOS_DIR}/.env"
 
+    # Try to read NETMIND_API_KEY from project .env (set during install)
+    local netmind_api_key=""
+    if [ -f "${PROJECT_ROOT}/.env" ]; then
+        netmind_api_key=$(grep '^NETMIND_API_KEY=' "${PROJECT_ROOT}/.env" 2>/dev/null | sed 's/^NETMIND_API_KEY=//' | tr -d '"' || true)
+    fi
+
     echo ""
     echo -e "  ${BOLD}${G3}╔══════════════════════════════════════════════════╗${RESET}"
     echo -e "  ${BOLD}${G3}║           EverMemOS Configuration Wizard         ║${RESET}"
@@ -1004,42 +1146,134 @@ configure_evermemos_env() {
     echo -e "    ${DIM}boundary detection, memory extraction & semantic retrieval).${RESET}"
     echo -e "    ${DIM}All options below can be skipped by pressing Enter.${RESET}"
     echo ""
-    echo -e "    ${BOLD}Skip all${RESET}  → Keep template defaults (vLLM local mode),"
-    echo -e "               requires self-hosted vLLM inference service"
-    echo -e "    ${BOLD}Fill keys${RESET} → Use cloud API (OpenRouter / DeepInfra),"
-    echo -e "               no GPU needed, memory features available immediately"
-    echo ""
+
+    # If NETMIND_API_KEY is available, offer one-click auto-config
+    if [ -n "$netmind_api_key" ]; then
+        echo -e "    ${GREEN}✓ NetMind API Key detected from .env${RESET}"
+        echo ""
+        echo -e "    ${G1}[1]${RESET}  ${BOLD}Auto-configure with NetMind${RESET}  ${DIM}(Recommended, one-click setup)${RESET}"
+        echo -e "         ${DIM}LLM: DeepSeek-V3.2 | Embedding: bge-m3 | Rerank: Disabled${RESET}"
+        echo -e "    ${G3}[2]${RESET}  ${BOLD}Manual configuration${RESET}  ${DIM}(Choose providers individually)${RESET}"
+        echo ""
+        read -rp "    > " auto_choice
+        echo ""
+
+        if [[ "$auto_choice" != "2" ]]; then
+            # Auto-configure: NetMind LLM + Embedding, Rerank disabled
+            sed_inplace "s|^LLM_MODEL=.*|LLM_MODEL=deepseek-ai/DeepSeek-V3.2|" "$env_file"
+            sed_inplace "s|^LLM_BASE_URL=.*|LLM_BASE_URL=https://api.netmind.ai/inference-api/openai/v1|" "$env_file"
+            sed_inplace "s|^LLM_API_KEY=.*|LLM_API_KEY=${netmind_api_key}|" "$env_file"
+
+            sed_inplace "s|^VECTORIZE_PROVIDER=.*|VECTORIZE_PROVIDER=deepinfra|" "$env_file"
+            sed_inplace "s|^VECTORIZE_MODEL=.*|VECTORIZE_MODEL=BAAI/bge-m3|" "$env_file"
+            sed_inplace "s|^VECTORIZE_BASE_URL=.*|VECTORIZE_BASE_URL=https://api.netmind.ai/inference-api/openai/v1|" "$env_file"
+            sed_inplace "s|^VECTORIZE_API_KEY=.*|VECTORIZE_API_KEY=${netmind_api_key}|" "$env_file"
+
+            sed_inplace "s|^RERANK_PROVIDER=.*|RERANK_PROVIDER=none|" "$env_file"
+            sed_inplace "s|^RERANK_API_KEY=.*|RERANK_API_KEY=EMPTY|" "$env_file"
+            sed_inplace "s|^RERANK_BASE_URL=.*|RERANK_BASE_URL=|" "$env_file"
+            sed_inplace "s|^RERANK_MODEL=.*|RERANK_MODEL=|" "$env_file"
+            sed_inplace "s|^RERANK_FALLBACK_PROVIDER=.*|RERANK_FALLBACK_PROVIDER=none|" "$env_file"
+            sed_inplace "s|^RERANK_FALLBACK_API_KEY=.*|RERANK_FALLBACK_API_KEY=EMPTY|" "$env_file"
+            sed_inplace "s|^RERANK_FALLBACK_BASE_URL=.*|RERANK_FALLBACK_BASE_URL=|" "$env_file"
+
+            echo ""
+            success "EverMemOS auto-configured with NetMind (LLM + Embedding + Rerank disabled)"
+            echo -e "    ${DIM}Config file: ${env_file}${RESET}"
+            return
+        fi
+    else
+        echo -e "    ${BOLD}Skip all${RESET}  → Keep template defaults (vLLM local mode),"
+        echo -e "               requires self-hosted vLLM inference service"
+        echo -e "    ${BOLD}Fill keys${RESET} → Use cloud API (NetMind / OpenRouter / DeepInfra),"
+        echo -e "               no GPU needed, memory features available immediately"
+        echo ""
+    fi
+
     echo -e "    ${DIM}Config file: ${EVERMEMOS_DIR}/.env (can be edited manually anytime)${RESET}"
     echo ""
 
-    # ---- 1) LLM API Key ----
-    echo -e "    ${BOLD}${WHITE}[1/3] LLM API Key${RESET}"
-    echo -e "    ${DIM}Used for OpenRouter LLM calls for conversation boundary detection & memory extraction${RESET}"
-    echo -e "    ${DIM}  Fill in → Cloud calls via OpenRouter (e.g., grok-4-fast)${RESET}"
-    echo -e "    ${DIM}  Skip   → Keep placeholder, memory extraction unavailable until configured${RESET}"
+    # ---- 1) LLM service selection ----
+    echo -e "    ${BOLD}${WHITE}[1/3] LLM Service${RESET}"
+    echo -e "    ${DIM}Used for conversation boundary detection & memory extraction${RESET}"
     echo ""
-    read -rp "    LLM_API_KEY (OpenRouter Key): " val_llm_key
-    if [ -n "$val_llm_key" ]; then
-        sed_inplace "s|^LLM_API_KEY=.*|LLM_API_KEY=${val_llm_key}|" "$env_file"
-    fi
+    echo -e "    ${G1}[1]${RESET}  ${BOLD}NetMind${RESET}       ${DIM}(Recommended, DeepSeek-V3.2, \$0.27/\$0.4 per MToken)${RESET}"
+    echo -e "    ${G3}[2]${RESET}  ${BOLD}OpenRouter${RESET}    ${DIM}(grok-4-fast, requires OpenRouter key)${RESET}"
+    echo -e "    ${DIM}    Skip → Keep defaults (requires manual config)${RESET}"
+    echo ""
+    read -rp "    > " llm_choice
+    echo ""
+
+    case "$llm_choice" in
+        1)
+            # NetMind: DeepSeek-V3.2
+            sed_inplace "s|^LLM_MODEL=.*|LLM_MODEL=deepseek-ai/DeepSeek-V3.2|" "$env_file"
+            sed_inplace "s|^LLM_BASE_URL=.*|LLM_BASE_URL=https://api.netmind.ai/inference-api/openai/v1|" "$env_file"
+
+            if [ -n "$netmind_api_key" ]; then
+                sed_inplace "s|^LLM_API_KEY=.*|LLM_API_KEY=${netmind_api_key}|" "$env_file"
+                success "Reusing NetMind API Key from .env"
+            else
+                read -rp "    NetMind API Key (get from netmind.ai): " val_llm_key
+                if [ -n "$val_llm_key" ]; then
+                    sed_inplace "s|^LLM_API_KEY=.*|LLM_API_KEY=${val_llm_key}|" "$env_file"
+                    netmind_api_key="$val_llm_key"
+                fi
+            fi
+            ;;
+        2)
+            # OpenRouter: keep default model (grok-4-fast)
+            read -rp "    LLM_API_KEY (OpenRouter Key): " val_llm_key
+            if [ -n "$val_llm_key" ]; then
+                sed_inplace "s|^LLM_API_KEY=.*|LLM_API_KEY=${val_llm_key}|" "$env_file"
+            fi
+            ;;
+        *)
+            # Skip: if NetMind key available, auto-apply NetMind config
+            if [ -n "$netmind_api_key" ]; then
+                sed_inplace "s|^LLM_MODEL=.*|LLM_MODEL=deepseek-ai/DeepSeek-V3.2|" "$env_file"
+                sed_inplace "s|^LLM_BASE_URL=.*|LLM_BASE_URL=https://api.netmind.ai/inference-api/openai/v1|" "$env_file"
+                sed_inplace "s|^LLM_API_KEY=.*|LLM_API_KEY=${netmind_api_key}|" "$env_file"
+                info "Skipped — auto-applied NetMind config (DeepSeek-V3.2)"
+            else
+                info "Keeping LLM default config"
+            fi
+            ;;
+    esac
     echo ""
 
     # ---- 2) Embedding service selection ----
     echo -e "    ${BOLD}${WHITE}[2/3] Embedding (Vectorization) Service${RESET}"
     echo -e "    ${DIM}Converts memory text into vectors for semantic search${RESET}"
-    echo -e "    ${DIM}  [1] → Use DeepInfra cloud API, requires API Key, no GPU needed${RESET}"
-    echo -e "    ${DIM}  [2] → Use local vLLM service, requires self-hosted GPU deployment${RESET}"
-    echo -e "    ${DIM}  Skip → Keep default vLLM local mode, requires deployment first${RESET}"
     echo ""
-    echo -e "    ${G1}[1]${RESET}  ${BOLD}DeepInfra Cloud${RESET}  ${DIM}(Recommended, no GPU needed)${RESET}"
-    echo -e "    ${G3}[2]${RESET}  ${BOLD}vLLM Self-hosted${RESET} ${DIM}(Requires local GPU)${RESET}"
+    echo -e "    ${G1}[1]${RESET}  ${BOLD}NetMind${RESET}       ${DIM}(Recommended, bge-m3, no GPU needed)${RESET}"
+    echo -e "    ${G3}[2]${RESET}  ${BOLD}DeepInfra${RESET}     ${DIM}(Qwen3-Embedding-4B, requires DeepInfra key)${RESET}"
+    echo -e "    ${G3}[3]${RESET}  ${BOLD}vLLM${RESET}          ${DIM}(Self-hosted, requires local GPU)${RESET}"
+    echo -e "    ${DIM}    Skip → Keep defaults (vLLM local mode)${RESET}"
     echo ""
     read -rp "    > " embed_choice
     echo ""
 
     case "$embed_choice" in
         1)
-            # Primary: DeepInfra, fallback: vLLM
+            # NetMind: bge-m3
+            sed_inplace "s|^VECTORIZE_PROVIDER=.*|VECTORIZE_PROVIDER=deepinfra|" "$env_file"
+            sed_inplace "s|^VECTORIZE_MODEL=.*|VECTORIZE_MODEL=BAAI/bge-m3|" "$env_file"
+            sed_inplace "s|^VECTORIZE_BASE_URL=.*|VECTORIZE_BASE_URL=https://api.netmind.ai/inference-api/openai/v1|" "$env_file"
+            sed_inplace "s|^VECTORIZE_FALLBACK_PROVIDER=.*|VECTORIZE_FALLBACK_PROVIDER=none|" "$env_file"
+
+            if [ -n "$netmind_api_key" ]; then
+                sed_inplace "s|^VECTORIZE_API_KEY=.*|VECTORIZE_API_KEY=${netmind_api_key}|" "$env_file"
+                success "Reusing NetMind API Key"
+            else
+                read -rp "    NetMind API Key (get from netmind.ai): " val_vec_key
+                if [ -n "$val_vec_key" ]; then
+                    sed_inplace "s|^VECTORIZE_API_KEY=.*|VECTORIZE_API_KEY=${val_vec_key}|" "$env_file"
+                fi
+            fi
+            ;;
+        2)
+            # DeepInfra: Qwen3-Embedding-4B (original option 1)
             sed_inplace "s|^VECTORIZE_PROVIDER=.*|VECTORIZE_PROVIDER=deepinfra|" "$env_file"
             sed_inplace "s|^VECTORIZE_BASE_URL=.*|VECTORIZE_BASE_URL=https://api.deepinfra.com/v1/openai|" "$env_file"
             sed_inplace "s|^VECTORIZE_FALLBACK_PROVIDER=.*|VECTORIZE_FALLBACK_PROVIDER=vllm|" "$env_file"
@@ -1049,14 +1283,13 @@ configure_evermemos_env() {
                 sed_inplace "s|^VECTORIZE_API_KEY=.*|VECTORIZE_API_KEY=${val_vec_key}|" "$env_file"
             fi
 
-            # Fallback vLLM uses defaults
             read -rp "    Fallback vLLM URL [http://localhost:8000/v1]: " val_vec_fb_url
             val_vec_fb_url="${val_vec_fb_url:-http://localhost:8000/v1}"
             sed_inplace "s|^VECTORIZE_FALLBACK_BASE_URL=.*|VECTORIZE_FALLBACK_BASE_URL=${val_vec_fb_url}|" "$env_file"
             sed_inplace "s|^VECTORIZE_FALLBACK_API_KEY=.*|VECTORIZE_FALLBACK_API_KEY=EMPTY|" "$env_file"
             ;;
-        2)
-            # Primary: vLLM, fallback: DeepInfra
+        3)
+            # vLLM self-hosted (original option 2)
             sed_inplace "s|^VECTORIZE_PROVIDER=.*|VECTORIZE_PROVIDER=vllm|" "$env_file"
             sed_inplace "s|^VECTORIZE_API_KEY=.*|VECTORIZE_API_KEY=EMPTY|" "$env_file"
             sed_inplace "s|^VECTORIZE_FALLBACK_PROVIDER=.*|VECTORIZE_FALLBACK_PROVIDER=deepinfra|" "$env_file"
@@ -1072,27 +1305,37 @@ configure_evermemos_env() {
             sed_inplace "s|^VECTORIZE_FALLBACK_BASE_URL=.*|VECTORIZE_FALLBACK_BASE_URL=https://api.deepinfra.com/v1/openai|" "$env_file"
             ;;
         *)
-            info "Keeping Embedding default config (vLLM local, requires self-hosted deployment)"
+            # Skip: if NetMind key available, auto-apply NetMind config
+            if [ -n "$netmind_api_key" ]; then
+                sed_inplace "s|^VECTORIZE_PROVIDER=.*|VECTORIZE_PROVIDER=deepinfra|" "$env_file"
+                sed_inplace "s|^VECTORIZE_MODEL=.*|VECTORIZE_MODEL=BAAI/bge-m3|" "$env_file"
+                sed_inplace "s|^VECTORIZE_BASE_URL=.*|VECTORIZE_BASE_URL=https://api.netmind.ai/inference-api/openai/v1|" "$env_file"
+                sed_inplace "s|^VECTORIZE_API_KEY=.*|VECTORIZE_API_KEY=${netmind_api_key}|" "$env_file"
+                sed_inplace "s|^VECTORIZE_FALLBACK_PROVIDER=.*|VECTORIZE_FALLBACK_PROVIDER=none|" "$env_file"
+                info "Skipped — auto-applied NetMind config (bge-m3)"
+            else
+                info "Keeping Embedding default config (vLLM local, requires self-hosted deployment)"
+            fi
             ;;
     esac
     echo ""
 
-    # ---- 3) Rerank service selection ----
-    echo -e "    ${BOLD}${WHITE}[3/3] Rerank (Re-ranking) Service${RESET}"
-    echo -e "    ${DIM}Re-ranks retrieved memory fragments by relevance${RESET}"
-    echo -e "    ${DIM}  [1] → Use DeepInfra cloud API, requires API Key, no GPU needed${RESET}"
-    echo -e "    ${DIM}  [2] → Use local vLLM service, requires self-hosted GPU deployment${RESET}"
-    echo -e "    ${DIM}  Skip → Keep default vLLM local mode, requires deployment first${RESET}"
+    # ---- 3) Rerank service selection (optional) ----
+    echo -e "    ${BOLD}${WHITE}[3/3] Rerank Service (Optional)${RESET}"
+    echo -e "    ${DIM}Re-ranks retrieved memory fragments by relevance.${RESET}"
+    echo -e "    ${DIM}Not required — system uses RRF ranking without it.${RESET}"
     echo ""
-    echo -e "    ${G1}[1]${RESET}  ${BOLD}DeepInfra Cloud${RESET}  ${DIM}(Recommended, no GPU needed)${RESET}"
-    echo -e "    ${G3}[2]${RESET}  ${BOLD}vLLM Self-hosted${RESET} ${DIM}(Requires local GPU)${RESET}"
+    echo -e "    ${G1}[1]${RESET}  ${BOLD}Disable${RESET}       ${DIM}(Recommended, uses RRF ranking only — no extra cost)${RESET}"
+    echo -e "    ${G3}[2]${RESET}  ${BOLD}DeepInfra${RESET}     ${DIM}(Improves accuracy, requires DeepInfra key)${RESET}"
+    echo -e "    ${G3}[3]${RESET}  ${BOLD}vLLM${RESET}          ${DIM}(Self-hosted, requires local GPU)${RESET}"
+    echo -e "    ${DIM}    Skip → Disable rerank (recommended)${RESET}"
     echo ""
     read -rp "    > " rerank_choice
     echo ""
 
     case "$rerank_choice" in
-        1)
-            # Primary: DeepInfra, fallback: vLLM
+        2)
+            # DeepInfra (original option 1)
             sed_inplace "s|^RERANK_PROVIDER=.*|RERANK_PROVIDER=deepinfra|" "$env_file"
             sed_inplace "s|^RERANK_BASE_URL=.*|RERANK_BASE_URL=https://api.deepinfra.com/v1/inference|" "$env_file"
             sed_inplace "s|^RERANK_FALLBACK_PROVIDER=.*|RERANK_FALLBACK_PROVIDER=vllm|" "$env_file"
@@ -1102,14 +1345,13 @@ configure_evermemos_env() {
                 sed_inplace "s|^RERANK_API_KEY=.*|RERANK_API_KEY=${val_rr_key}|" "$env_file"
             fi
 
-            # Fallback vLLM uses defaults
             read -rp "    Fallback vLLM Rerank URL [http://localhost:12000/v1/rerank]: " val_rr_fb_url
             val_rr_fb_url="${val_rr_fb_url:-http://localhost:12000/v1/rerank}"
             sed_inplace "s|^RERANK_FALLBACK_BASE_URL=.*|RERANK_FALLBACK_BASE_URL=${val_rr_fb_url}|" "$env_file"
             sed_inplace "s|^RERANK_FALLBACK_API_KEY=.*|RERANK_FALLBACK_API_KEY=EMPTY|" "$env_file"
             ;;
-        2)
-            # Primary: vLLM, fallback: DeepInfra
+        3)
+            # vLLM self-hosted (original option 2)
             sed_inplace "s|^RERANK_PROVIDER=.*|RERANK_PROVIDER=vllm|" "$env_file"
             sed_inplace "s|^RERANK_API_KEY=.*|RERANK_API_KEY=EMPTY|" "$env_file"
             sed_inplace "s|^RERANK_FALLBACK_PROVIDER=.*|RERANK_FALLBACK_PROVIDER=deepinfra|" "$env_file"
@@ -1125,7 +1367,15 @@ configure_evermemos_env() {
             sed_inplace "s|^RERANK_FALLBACK_BASE_URL=.*|RERANK_FALLBACK_BASE_URL=https://api.deepinfra.com/v1/inference|" "$env_file"
             ;;
         *)
-            info "Keeping Rerank default config (vLLM local, requires self-hosted deployment)"
+            # Disable rerank (option 1, skip, or any other input)
+            sed_inplace "s|^RERANK_PROVIDER=.*|RERANK_PROVIDER=none|" "$env_file"
+            sed_inplace "s|^RERANK_API_KEY=.*|RERANK_API_KEY=EMPTY|" "$env_file"
+            sed_inplace "s|^RERANK_BASE_URL=.*|RERANK_BASE_URL=|" "$env_file"
+            sed_inplace "s|^RERANK_MODEL=.*|RERANK_MODEL=|" "$env_file"
+            sed_inplace "s|^RERANK_FALLBACK_PROVIDER=.*|RERANK_FALLBACK_PROVIDER=none|" "$env_file"
+            sed_inplace "s|^RERANK_FALLBACK_API_KEY=.*|RERANK_FALLBACK_API_KEY=EMPTY|" "$env_file"
+            sed_inplace "s|^RERANK_FALLBACK_BASE_URL=.*|RERANK_FALLBACK_BASE_URL=|" "$env_file"
+            info "Rerank disabled (using RRF ranking only)"
             ;;
     esac
 
@@ -1193,26 +1443,89 @@ do_run() {
     # --- Port conflict pre-check ---
     step "0.3" "Checking for port conflicts"
     local port_warnings=false
+    local conflict_ports=()
     if ! check_port_conflicts \
         "8000:FastAPI Backend" \
         "5173:Frontend Dev" \
         "7801:MCP Server"; then
         port_warnings=true
+        # Collect conflicting port PIDs for potential kill
+        for pair in "8000:FastAPI Backend" "5173:Frontend Dev" "7801:MCP Server"; do
+            local _port="${pair%%:*}"
+            if is_port_up "$_port"; then
+                conflict_ports+=("$_port")
+            fi
+        done
         echo ""
         warn "Some required ports are already in use (see above)."
         echo -e "    ${DIM}Services may fail to start if ports are occupied.${RESET}"
         echo ""
-        echo -e "    ${G1}[1]${RESET}  ${BOLD}Continue anyway${RESET}  ${DIM}(existing services may conflict)${RESET}"
-        echo -e "    ${G3}[2]${RESET}  ${BOLD}Abort${RESET}           ${DIM}(free the ports first, then retry)${RESET}"
+        echo -e "    ${G1}[1]${RESET}  ${BOLD}Kill & Continue${RESET}  ${DIM}(kill occupying processes, then start)${RESET}"
+        echo -e "    ${G3}[2]${RESET}  ${BOLD}Continue anyway${RESET}  ${DIM}(may conflict with existing services)${RESET}"
+        echo -e "    ${G5}[3]${RESET}  ${BOLD}Abort${RESET}           ${DIM}(return to menu)${RESET}"
         echo ""
         read -rp "    > " port_choice
-        if [[ "$port_choice" == "2" ]]; then
-            info "Aborted. Please free the occupied ports and try again."
-            read -rp "    Press Enter to return to menu..."
-            show_banner
-            show_menu
-            return
-        fi
+        case "$port_choice" in
+            1)
+                # Step 1: Kill known project processes by pattern (handles most cases)
+                local kill_patterns=(
+                    "uvicorn.*backend.main"
+                    "module_runner.py.*mcp"
+                    "module_poller"
+                    "job_trigger.py"
+                    "node.*vite"
+                    "vite.*5173"
+                )
+                for pat in "${kill_patterns[@]}"; do
+                    pkill -f "$pat" 2>/dev/null || true
+                done
+
+                sleep 2
+
+                # Step 2: If ports still occupied, kill by PID (handles non-project processes)
+                for _port in "${conflict_ports[@]}"; do
+                    if is_port_up "$_port"; then
+                        local _pid=""
+                        if [ "$OS_TYPE" = "Darwin" ]; then
+                            _pid=$(lsof -iTCP:"$_port" -sTCP:LISTEN -P -n 2>/dev/null | awk 'NR==2{print $2}')
+                        else
+                            _pid=$(fuser "${_port}/tcp" 2>/dev/null | awk '{print $1}')
+                        fi
+                        if [ -n "$_pid" ]; then
+                            kill "$_pid" 2>/dev/null || sudo kill "$_pid" 2>/dev/null || true
+                            info "Killed PID $_pid on port $_port"
+                        fi
+                    fi
+                done
+
+                sleep 1
+
+                # Step 3: Verify ports are actually freed
+                local still_blocked=false
+                for _port in "${conflict_ports[@]}"; do
+                    if is_port_up "$_port"; then
+                        fail "Port $_port is still occupied"
+                        still_blocked=true
+                    fi
+                done
+                if [ "$still_blocked" = true ]; then
+                    warn "Some ports could not be freed. Services may fail to start."
+                else
+                    success "All conflicting ports cleared"
+                fi
+                ;;
+            3)
+                info "Aborted. Returning to menu."
+                echo ""
+                read -rp "    Press Enter to return to menu..."
+                show_banner
+                show_menu
+                return
+                ;;
+            *)
+                info "Continuing with existing port conflicts..."
+                ;;
+        esac
     else
         success "No port conflicts detected (8000, 5173, 7801)"
     fi
@@ -1229,6 +1542,53 @@ do_run() {
             cd "$PROJECT_ROOT"
             uv run python src/xyz_agent_context/utils/database_table_management/create_all_tables.py 2>&1 | tail -5
             success "Database tables initialized"
+
+            # Check for schema changes (new version may have added/removed columns)
+            step "0.7" "Checking for database schema updates"
+            local schema_diff
+            schema_diff=$(cd "$PROJECT_ROOT" && uv run python src/xyz_agent_context/utils/database_table_management/sync_all_tables.py --check 2>/dev/null)
+            if [ $? -eq 0 ]; then
+                warn "Database schema changes detected after update:"
+                echo ""
+                echo "$schema_diff" | grep -E "^\s+([\+\-]|[a-z_]+:)" | while IFS= read -r line; do
+                    echo -e "      ${line}"
+                done
+                echo ""
+                echo -e "    ${BOLD}${WHITE}Apply schema changes?${RESET}"
+                echo -e "    ${DIM}Your data will be preserved. Only table structure (columns) will be updated.${RESET}"
+                echo ""
+                echo -e "    ${G1}[1]${RESET}  ${BOLD}Yes, apply changes${RESET}  ${DIM}(Recommended)${RESET}"
+                echo -e "    ${G3}[2]${RESET}  ${BOLD}Preview changes first (dry-run)${RESET}"
+                echo -e "    ${YELLOW}[3]${RESET}  ${BOLD}Skip for now${RESET}"
+                echo ""
+                read -rp "    > " schema_choice
+                echo ""
+                case "$schema_choice" in
+                    1)
+                        info "Applying schema changes..."
+                        cd "$PROJECT_ROOT"
+                        echo "yes" | uv run python src/xyz_agent_context/utils/database_table_management/sync_all_tables.py 2>&1 | tail -20
+                        success "Database schema updated"
+                        ;;
+                    2)
+                        cd "$PROJECT_ROOT"
+                        uv run python src/xyz_agent_context/utils/database_table_management/sync_all_tables.py --dry-run 2>&1 | tail -40
+                        echo ""
+                        read -rp "    Apply these changes? [y/N] " apply_confirm
+                        if [[ "$apply_confirm" == "y" || "$apply_confirm" == "Y" ]]; then
+                            echo "yes" | uv run python src/xyz_agent_context/utils/database_table_management/sync_all_tables.py 2>&1 | tail -20
+                            success "Database schema updated"
+                        else
+                            warn "Schema changes skipped. Services may encounter errors."
+                        fi
+                        ;;
+                    *)
+                        warn "Schema changes skipped. Services may encounter errors if columns are missing."
+                        ;;
+                esac
+            else
+                success "Database schema is up-to-date"
+            fi
         else
             warn "Skipping database table initialization (uv or .env not available)"
         fi
@@ -1303,7 +1663,7 @@ do_run() {
         }
 
         wait_for_service "MongoDB"       "$DOCKER_CMD exec memsys-mongodb mongosh --eval 'db.runCommand({ping:1})'" 60
-        wait_for_service "Redis"         "redis-cli ping" 10
+        wait_for_service "Redis"         "redis-cli ping" 30
         wait_for_service "Elasticsearch" "curl -sf http://localhost:19200/_cluster/health" 90
         wait_for_service "Milvus"        "curl -sf http://localhost:9091/healthz" 120
 
@@ -1673,22 +2033,32 @@ do_stop() {
     echo -e "  ${BOLD}${YELLOW}╚══════════════════════════════════════════════════╝${RESET}"
     echo ""
 
+    # --- Stop application processes ---
+    step "1" "Stopping application processes"
+    local stop_patterns=(
+        "uvicorn.*backend.main"      # FastAPI backend (port 8000)
+        "uvicorn.*1995"              # EverMemOS Web
+        "module_runner.py.*mcp"      # MCP server (port 7801)
+        "module_poller"              # ModulePoller
+        "job_trigger.py"             # Job trigger
+        "npm.*dev.*5173"             # Frontend dev server
+        "vite.*5173"                 # Vite (frontend actual process)
+        "node.*vite"                 # Vite node process
+    )
+    for pat in "${stop_patterns[@]}"; do
+        if pgrep -f "$pat" &>/dev/null; then
+            pkill -f "$pat" 2>/dev/null
+        fi
+    done
+    success "Application processes stopped"
+
     # --- Stop tmux session ---
-    step "1" "Stopping tmux session"
+    step "2" "Stopping tmux session"
     if tmux has-session -t "$TMUX_SESSION" 2>/dev/null; then
         tmux kill-session -t "$TMUX_SESSION"
         success "tmux session '${TMUX_SESSION}' stopped"
     else
         info "tmux session does not exist, skipping"
-    fi
-
-    # --- Stop EverMemOS Web ---
-    step "2" "Stopping EverMemOS Web service"
-    if pgrep -f "uvicorn.*1995" &>/dev/null; then
-        pkill -f "uvicorn.*1995" 2>/dev/null
-        success "EverMemOS Web stopped"
-    else
-        info "EverMemOS Web is not running"
     fi
 
     # --- Stop Docker containers ---

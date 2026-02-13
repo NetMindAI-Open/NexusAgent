@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/NexusAgent.png" alt="NexusAgent" width="480" />
+<img src="docs/NexusMind.png" alt="NexusMind" width="480" />
 
 <br/>
 <br/>
@@ -19,9 +19,9 @@
 
 <br/>
 
-Most agent frameworks focus on making agents *smarter*. NexusAgent focuses on making agents *connected*.
+Most agent frameworks focus on making agents *smarter*. NexusMind focuses on making agents *connected*.
 
-An agent in isolation is a tool. An agent with persistent memory, social identity, relationships, and goals becomes a participant in a **nexus** -- a network where intelligence is a collective property, not a model property. NexusAgent provides the infrastructure for this: narrative memory that accumulates across conversations, a social graph that tracks entities and relationships, task systems with dependency chains, and modular capabilities that can be composed at runtime.
+An agent in isolation is a tool. An agent with persistent memory, social identity, relationships, and goals becomes a participant in a **nexus** -- a network where intelligence is a collective property, not a model property. NexusMind provides the infrastructure for this: narrative memory that accumulates across conversations, a social graph that tracks entities and relationships, task systems with dependency chains, and modular capabilities that can be composed at runtime.
 
 ## Key Features
 
@@ -38,13 +38,15 @@ An agent in isolation is a tool. An agent with persistent memory, social identit
 
 ### Prerequisites
 
+**Windows users**: WSL2 is **required**. Install it first in PowerShell (Admin): `wsl --install`, then run all commands below inside the WSL2 terminal.
+
 **macOS users**: Install the following tools before running the script (Linux users: handled automatically by `run.sh`):
 
 | Tool | How to install |
 |------|---------------|
 | [Homebrew](https://brew.sh/) | `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"` |
 | [Docker Desktop](https://www.docker.com/products/docker-desktop/) | Download from official site and launch |
-| [Node.js](https://nodejs.org/) (v21+) | `brew install node` or download from official site |
+| [Node.js](https://nodejs.org/) (v20) | Install via [nvm](https://github.com/nvm-sh/nvm) (recommended): `curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh \| bash && nvm install 20` |
 
 **API Keys**:
 
@@ -185,17 +187,17 @@ The right panel has multiple tabs showing agent state:
 
 ## Acknowledgments
 
-NexusAgent's long-term memory system is built on [EverMemOS](https://github.com/EverMind-AI/EverMemOS), a self-organizing memory operating system for structured long-horizon reasoning. We thank the EverMemOS team for their foundational work.
+NexusMind's long-term memory system is built on [EverMemOS](https://github.com/EverMind-AI/EverMemOS), a self-organizing memory operating system for structured long-horizon reasoning. We thank the EverMemOS team for their foundational work.
 
 > Chuanrui Hu, Xingze Gao, Zuyi Zhou, Dannong Xu, Yi Bai, Xintong Li, Hui Zhang, Tong Li, Chong Zhang, Lidong Bing, Yafeng Deng. *EverMemOS: A Self-Organizing Memory Operating System for Structured Long-Horizon Reasoning.* arXiv:2601.02163, 2026. [[Paper]](https://arxiv.org/abs/2601.02163)
 
 ## Citation
 
-If you find NexusAgent useful, please cite it as:
+If you find NexusMind useful, please cite it as:
 
 ```bibtex
 @software{nexusagent2025,
-  title        = {NexusAgent: A Framework for Building Nexuses of Agents},
+  title        = {NexusMind: A Framework for Building Nexuses of Agents},
   author       = {NetMind.AI},
   year         = {2026},
   url          = {https://github.com/NetMindAI-Open/NexusAgent},

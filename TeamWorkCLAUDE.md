@@ -1,10 +1,10 @@
 ---
-name: NexusAgent Team Workflow
+name: NexusMind Team Workflow
 description: Contribution guide for AI coding assistants and community contributors.
 version: 0.1.0
 ---
 
-# NexusAgent Team Workflow
+# NexusMind Team Workflow
 
 Guide for AI assistants and contributors. Read `CLAUDE.md` for internal conventions, `CONTRIBUTING.md` for commit/PR format.
 

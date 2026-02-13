@@ -16,7 +16,7 @@ set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 EVERMEMOS_DIR="${PROJECT_ROOT}/.evermemos"
-REPO_URL="git@github.com:NetMindAI-Open/EverMemOS.git"
+REPO_URL="https://github.com/NetMindAI-Open/EverMemOS.git"
 BRANCH="main"
 
 # 颜色输出
@@ -204,7 +204,7 @@ wait_for_service() {
 }
 
 wait_for_service "MongoDB"      "$DOCKER_CMD exec memsys-mongodb mongosh --eval 'db.runCommand({ping:1})'" 60
-wait_for_service "Redis"        "redis-cli ping" 10  # 用 redis-cli 检查（无论 Docker 还是系统 Redis）
+wait_for_service "Redis"        "redis-cli ping" 30  # 用 redis-cli 检查（无论 Docker 还是系统 Redis）
 wait_for_service "Elasticsearch" "curl -sf http://localhost:19200/_cluster/health" 90
 wait_for_service "Milvus"       "curl -sf http://localhost:9091/healthz" 120
 

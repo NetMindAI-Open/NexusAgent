@@ -1,4 +1,4 @@
-# Contributing to NexusAgent
+# Contributing to NexusMind
 
 Thanks for your interest in contributing. This document covers the conventions we use for issues, pull requests, and commits.
 
@@ -152,8 +152,8 @@ Extended description if needed...
 
 ```bash
 # Clone and install
-git clone https://github.com/your-org/nexus-agent.git
-cd nexus-agent
+git clone https://github.com/your-org/nexus-mind.git
+cd nexus-mind
 uv sync
 
 # Copy and configure environment

@@ -301,6 +301,9 @@ class ModuleLoader:
             f"task: {len(task_active_instances)}, total: {len(all_active_instances)}"
         )
 
+        # ===== Fallback: ensure JobModule MCP tools are always accessible =====
+        all_active_instances = self._ensure_job_module_available(all_active_instances)
+
         # ===== Add always-loaded modules (no Instance record needed) =====
         all_active_instances = self._add_always_load_modules(all_active_instances)
 
@@ -577,6 +580,50 @@ class ModuleLoader:
         }
         prefix = prefix_map.get(module_class, module_class.lower().replace("module", ""))
         return f"{prefix}_{short_uuid}"
+
+    def _ensure_job_module_available(
+        self,
+        instances: List[ModuleInstance]
+    ) -> List[ModuleInstance]:
+        """
+        Ensure JobModule MCP tools are always accessible.
+
+        When instance decision selects zero JobModule instances, create a
+        virtual (in-memory only, not persisted) JobModule instance so the
+        Agent can still access job_create and other MCP tools in Step 3.
+
+        Args:
+            instances: Current instance list (capability + task merged)
+
+        Returns:
+            Instance list, with a virtual JobModule appended if none existed
+        """
+        has_job_module = any(
+            inst.module_class == "JobModule"
+            for inst in instances
+        )
+
+        if has_job_module or "JobModule" not in self.module_map:
+            return instances
+
+        virtual_instance = ModuleInstance(
+            instance_id="",
+            module_class="JobModule",
+            description="",
+            status=InstanceStatus.ACTIVE,
+            agent_id=self.agent_id,
+            dependencies=[],
+            config={},
+            state={},
+            created_at=datetime.now(),
+            last_used_at=datetime.now(),
+        )
+
+        logger.info(
+            "ModuleLoader: No JobModule instance selected by decision, "
+            "adding virtual instance to ensure MCP tools are available"
+        )
+        return list(instances) + [virtual_instance]
 
     def _add_always_load_modules(
         self,

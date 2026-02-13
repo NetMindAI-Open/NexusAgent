@@ -1,6 +1,6 @@
-# NexusAgent Frontend
+# NexusMind Frontend
 
-A visual interface for NexusAgent built with React + TypeScript + Vite.
+A visual interface for NexusMind built with React + TypeScript + Vite.
 
 ## Table of Contents
 
@@ -423,7 +423,7 @@ interface ConfigState {
 }
 ```
 
-**Persistence**: Uses localStorage, key is `nexus-agent-config`
+**Persistence**: Uses localStorage, key is `nexus-mind-config`
 
 ### chatStore
 

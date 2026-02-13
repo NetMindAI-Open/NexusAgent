@@ -217,6 +217,59 @@ async def sync_all_tables(
     print("="*80 + "\n")
 
 
+# ===== Schema Change Detection (for automated checks) =====
+
+async def check_schema_changes() -> bool:
+    """
+    检测是否存在表结构差异
+
+    Returns:
+        True = 有变化需要同步, False = 无变化
+    """
+    has_changes = False
+
+    for table_name, manager_class in TABLE_MANAGERS.items():
+        try:
+            db_client = await get_db_client()
+            pydantic_fields = manager_class.get_pydantic_fields()
+            try:
+                db_columns = await manager_class.get_existing_columns(db_client)
+            except Exception:
+                # 表不存在，跳过（由 create_all_tables 处理）
+                continue
+
+            pydantic_to_db = {
+                name: manager_class.field_name_mapping.get(name, name)
+                for name in pydantic_fields.keys()
+            }
+
+            # 检测新增列
+            columns_to_add = [
+                db_name for _, db_name in pydantic_to_db.items()
+                if db_name not in db_columns
+            ]
+
+            # 检测删除列
+            db_to_pydantic = {v: k for k, v in pydantic_to_db.items()}
+            columns_to_drop = [
+                col for col in db_columns.keys()
+                if col not in db_to_pydantic and col not in manager_class.protected_columns
+            ]
+
+            if columns_to_add or columns_to_drop:
+                has_changes = True
+                print(f"  {table_name}:")
+                for col in columns_to_add:
+                    print(f"    + {col}")
+                for col in columns_to_drop:
+                    print(f"    - {col}")
+
+        except Exception:
+            continue
+
+    return has_changes
+
+
 # ===== Database Connection Test =====
 
 async def test_database_connection() -> bool:
@@ -298,7 +351,21 @@ Supported tables:
         help="Only test database connection"
     )
 
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Check if schema changes exist (exit code 0=has changes, 1=no changes)"
+    )
+
     args = parser.parse_args()
+
+    # Check mode: detect changes and exit with code
+    if args.check:
+        is_connected = await test_database_connection()
+        if not is_connected:
+            sys.exit(1)
+        has_changes = await check_schema_changes()
+        sys.exit(0 if has_changes else 1)
 
     # Test database connection
     if args.test_connection:

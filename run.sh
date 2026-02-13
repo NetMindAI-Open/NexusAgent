@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================================
-# NexusAgent Unified Entry Script
+# NexusMind Unified Entry Script
 #
 # One-click: Environment Install → Service Startup → Status Monitor → Stop
 #
@@ -20,7 +20,7 @@ set -uo pipefail
 # ============================================================================
 PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
 EVERMEMOS_DIR="${PROJECT_ROOT}/.evermemos"
-EVERMEMOS_REPO="git@github.com:NetMindAI-Open/EverMemOS.git"
+EVERMEMOS_REPO="https://github.com/NetMindAI-Open/EverMemOS.git"
 EVERMEMOS_BRANCH="main"
 TMUX_SESSION="xyz-dev"
 
@@ -51,6 +51,27 @@ get_port_occupant() {
         occupant=$(ss -tlnp 2>/dev/null | grep ":${port} " | sed 's/.*users:(("//' | sed 's/".*//' | head -1)
     fi
     echo "${occupant:-unknown process}"
+}
+
+# ============================================================================
+# Version comparison: check "actual" >= "required" (dotted version strings)
+#   Usage: version_gte "20.11.0" "20.10"  → returns 0 (true)
+#          version_gte "18.2.0"  "20.0"   → returns 1 (false)
+# Pure bash implementation, no sort -V (macOS BSD sort lacks -V)
+# ============================================================================
+version_gte() {
+    local actual="$1" required="$2"
+    local a1 a2 a3 r1 r2 r3
+    IFS='.' read -r a1 a2 a3 <<< "$actual"
+    IFS='.' read -r r1 r2 r3 <<< "$required"
+    a1=${a1:-0}; a2=${a2:-0}; a3=${a3:-0}
+    r1=${r1:-0}; r2=${r2:-0}; r3=${r3:-0}
+    if [ "$a1" -gt "$r1" ] 2>/dev/null; then return 0; fi
+    if [ "$a1" -lt "$r1" ] 2>/dev/null; then return 1; fi
+    if [ "$a2" -gt "$r2" ] 2>/dev/null; then return 0; fi
+    if [ "$a2" -lt "$r2" ] 2>/dev/null; then return 1; fi
+    if [ "$a3" -ge "$r3" ] 2>/dev/null; then return 0; fi
+    return 1
 }
 
 # ============================================================================
@@ -97,12 +118,12 @@ show_banner() {
     echo -e "${G1}    ██║ ╚████║${G2}███████╗${G3}██╔╝ ██╗${G4}╚██████╔╝${G5}███████║${RESET}"
     echo -e "${G1}    ╚═╝  ╚═══╝${G2}╚══════╝${G3}╚═╝  ╚═╝${G4} ╚═════╝ ${G5}╚══════╝${RESET}"
     echo ""
-    echo -e "${G3}       █████╗  ${G4} ██████╗ ${G5}███████╗${G6}███╗   ██╗████████╗${RESET}"
-    echo -e "${G3}      ██╔══██╗ ${G4}██╔════╝ ${G5}██╔════╝${G6}████╗  ██║╚══██╔══╝${RESET}"
-    echo -e "${G3}      ███████║ ${G4}██║  ███╗${G5}█████╗  ${G6}██╔██╗ ██║   ██║   ${RESET}"
-    echo -e "${G3}      ██╔══██║ ${G4}██║   ██║${G5}██╔══╝  ${G6}██║╚██╗██║   ██║   ${RESET}"
-    echo -e "${G3}      ██║  ██║ ${G4}╚██████╔╝${G5}███████╗${G6}██║ ╚████║   ██║   ${RESET}"
-    echo -e "${G3}      ╚═╝  ╚═╝ ${G4} ╚═════╝ ${G5}╚══════╝${G6}╚═╝  ╚═══╝   ╚═╝   ${RESET}"
+    echo -e "${G3}    ███╗   ███╗${G4}██╗${G5}███╗   ██╗${G6}██████╗ ${RESET}"
+    echo -e "${G3}    ████╗ ████║${G4}██║${G5}████╗  ██║${G6}██╔══██╗${RESET}"
+    echo -e "${G3}    ██╔████╔██║${G4}██║${G5}██╔██╗ ██║${G6}██║  ██║${RESET}"
+    echo -e "${G3}    ██║╚██╔╝██║${G4}██║${G5}██║╚██╗██║${G6}██║  ██║${RESET}"
+    echo -e "${G3}    ██║ ╚═╝ ██║${G4}██║${G5}██║ ╚████║${G6}██████╔╝${RESET}"
+    echo -e "${G3}    ╚═╝     ╚═╝${G4}╚═╝${G5}╚═╝  ╚═══╝${G6}╚═════╝ ${RESET}"
     echo ""
     echo -e "${DIM}    ─────────────────────────────────────────────────${RESET}"
     echo -e "${DIM}      Modular Agent Framework with Long-term Memory${RESET}"
@@ -205,15 +226,12 @@ check_docker_health() {
     docker_version=$($DOCKER_CMD version --format '{{.Server.Version}}' 2>/dev/null || echo "unknown")
 
     if [ "$docker_version" != "unknown" ]; then
-        local major minor
-        major=$(echo "$docker_version" | cut -d. -f1)
-        minor=$(echo "$docker_version" | cut -d. -f2)
-        if [ "${major:-0}" -lt 20 ] || { [ "${major:-0}" -eq 20 ] && [ "${minor:-0}" -lt 10 ]; }; then
-            warn "Docker version $docker_version is outdated (minimum recommended: 20.10)"
-            info "  Some features may not work correctly. Please upgrade Docker."
-            has_warning=true
-        else
+        if version_gte "$docker_version" "20.10"; then
             success "Docker version: $docker_version"
+        else
+            fail "Docker version $docker_version is too old (minimum required: 20.10)"
+            info "  Please upgrade Docker: https://docs.docker.com/engine/install/"
+            has_critical=true
         fi
     else
         warn "Could not determine Docker version"
@@ -553,7 +571,10 @@ do_install() {
     echo ""
     echo -e "    ${G1}[1]${RESET}  ${BOLD}Linux${RESET}     Ubuntu / Debian / CentOS etc."
     echo -e "    ${G3}[2]${RESET}  ${BOLD}macOS${RESET}     Intel / Apple Silicon"
-    echo -e "    ${G5}[3]${RESET}  ${BOLD}Windows${RESET}   Via WSL2"
+    echo -e "    ${G5}[3]${RESET}  ${BOLD}Windows${RESET}   ${YELLOW}Requires WSL2${RESET} — run inside WSL2 terminal"
+    echo ""
+    echo -e "    ${DIM}Windows users: WSL2 must be installed before proceeding.${RESET}"
+    echo -e "    ${DIM}Install WSL2 in PowerShell (Admin): ${WHITE}wsl --install${RESET}"
     echo ""
     read -rp "    > " os_choice
     echo ""
@@ -598,7 +619,7 @@ do_install() {
             ;;
     esac
 
-    local total_steps=9
+    local total_steps=10
     local current=0
 
     # --- Step 1: uv ---
@@ -619,7 +640,46 @@ do_install() {
         fi
     fi
 
-    # --- Step 2: Docker ---
+    # --- Step 2: Python (>= 3.13 required) ---
+    current=$((current + 1))
+    step "${current}/${total_steps}" "Checking Python (>= 3.13 required)"
+    local python_ver=""
+    # Prefer uv-managed python, then system python3, then python
+    if command -v uv &>/dev/null; then
+        python_ver=$(uv python find 3.13 2>/dev/null | xargs -I{} {} --version 2>/dev/null | awk '{print $2}' || true)
+    fi
+    if [ -z "$python_ver" ] && command -v python3 &>/dev/null; then
+        python_ver=$(python3 --version 2>/dev/null | awk '{print $2}')
+    fi
+    if [ -z "$python_ver" ] && command -v python &>/dev/null; then
+        python_ver=$(python --version 2>/dev/null | awk '{print $2}')
+    fi
+
+    if [ -n "$python_ver" ] && version_gte "$python_ver" "3.13"; then
+        success "Python version: ${python_ver}"
+    elif [ -n "$python_ver" ]; then
+        warn "Python ${python_ver} found but >= 3.13 is required"
+        if command -v uv &>/dev/null; then
+            info "Installing Python 3.13 via uv..."
+            uv python install 3.13
+            success "Python 3.13 installed via uv"
+        else
+            fail "Please install Python >= 3.13 manually: https://www.python.org/downloads/"
+            read -rp "    Press Enter to continue (uv sync will likely fail)..."
+        fi
+    else
+        warn "Python not found"
+        if command -v uv &>/dev/null; then
+            info "Installing Python 3.13 via uv..."
+            uv python install 3.13
+            success "Python 3.13 installed via uv"
+        else
+            fail "Please install Python >= 3.13 manually: https://www.python.org/downloads/"
+            read -rp "    Press Enter to continue (uv sync will likely fail)..."
+        fi
+    fi
+
+    # --- Step 3: Docker (>= 20.10 required) ---
     current=$((current + 1))
     step "${current}/${total_steps}" "Checking Docker"
 
@@ -672,46 +732,115 @@ do_install() {
         esac
     fi
 
-    # --- Step 3: Node.js ---
+    # --- Step 4: Node.js (>= 20 required) ---
     current=$((current + 1))
-    step "${current}/${total_steps}" "Checking Node.js"
+    step "${current}/${total_steps}" "Checking Node.js (>= 20 required)"
+
+    local need_node_install=false
     if command -v node &>/dev/null; then
-        success "Node.js is installed: $(node --version)"
-    else
-        case "$INSTALL_OS" in
-            linux)
-                info "Installing Node.js 20.x (apt)..."
-                if command -v apt-get &>/dev/null; then
-                    curl -fsSL https://deb.nodesource.com/setup_20.x | sudo bash -
-                    sudo apt-get install -y nodejs
-                elif command -v yum &>/dev/null; then
-                    curl -fsSL https://rpm.nodesource.com/setup_20.x | sudo bash -
-                    sudo yum install -y nodejs
-                else
-                    warn "Cannot auto-install Node.js. Please install manually: https://nodejs.org/"
-                    read -rp "    Press Enter to continue..."
-                fi
-                ;;
-            macos)
-                if command -v brew &>/dev/null; then
-                    info "Installing Node.js 20 (Homebrew)..."
-                    brew install node@20
-                    # Ensure node@20 is in PATH
-                    brew link --overwrite node@20 2>/dev/null || true
-                else
-                    warn "Homebrew not detected. Please install Homebrew or Node.js manually."
-                    echo -e "    ${DIM}Install Homebrew:${RESET} ${WHITE}/bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"${RESET}"
-                    echo -e "    ${DIM}Or install Node.js directly:${RESET} ${WHITE}https://nodejs.org/${RESET}"
-                    read -rp "    Press Enter to continue..."
-                fi
-                ;;
-        esac
-        if command -v node &>/dev/null; then
-            success "Node.js installed successfully: $(node --version)"
+        local node_ver
+        node_ver=$(node --version 2>/dev/null | sed 's/^v//')
+        if version_gte "$node_ver" "20.0.0"; then
+            success "Node.js version: v${node_ver}"
+        else
+            fail "Node.js v${node_ver} is too old (minimum required: v20)"
+            need_node_install=true
         fi
+    else
+        fail "Node.js is not installed"
+        need_node_install=true
     fi
 
-    # --- Step 4: tmux ---
+    if [ "$need_node_install" = true ]; then
+        echo ""
+        echo -e "    ${BOLD}${WHITE}Install Node.js 20 automatically?${RESET}"
+        echo ""
+        echo -e "    ${G1}[1]${RESET}  ${BOLD}Yes, install for me${RESET}  ${DIM}(Recommended)${RESET}"
+        echo -e "    ${G3}[2]${RESET}  ${BOLD}No, I will install it myself${RESET}"
+        echo ""
+        read -rp "    > " node_install_choice
+        echo ""
+
+        case "$node_install_choice" in
+            1)
+                case "$INSTALL_OS" in
+                    linux)
+                        if command -v apt-get &>/dev/null; then
+                            info "Installing Node.js 20.x via NodeSource (apt)..."
+                            curl -fsSL https://deb.nodesource.com/setup_20.x | sudo bash -
+                            sudo apt-get install -y nodejs
+                        elif command -v yum &>/dev/null; then
+                            info "Installing Node.js 20.x via NodeSource (yum)..."
+                            curl -fsSL https://rpm.nodesource.com/setup_20.x | sudo bash -
+                            sudo yum install -y nodejs
+                        else
+                            warn "Cannot auto-install: unsupported package manager"
+                            echo -e "    ${DIM}Please install Node.js 20 manually: https://nodejs.org/${RESET}"
+                            read -rp "    Press Enter to continue..."
+                        fi
+                        ;;
+                    macos)
+                        if command -v brew &>/dev/null; then
+                            info "Installing Node.js 20 via Homebrew..."
+                            brew install node@20
+                            brew link --overwrite node@20 2>/dev/null || true
+                        else
+                            # No brew: download official .pkg installer
+                            info "Downloading Node.js 20 installer from nodejs.org..."
+                            local node_arch="x64"
+                            [ "$(uname -m)" = "arm64" ] && node_arch="arm64"
+                            local node_tmpdir="/tmp/node_install_$$"
+                            mkdir -p "$node_tmpdir"
+
+                            # Get the latest v20.x pkg filename
+                            local pkg_file
+                            pkg_file=$(curl -fsSL https://nodejs.org/dist/latest-v20.x/ \
+                                | grep -oE "node-v[0-9]+\.[0-9]+\.[0-9]+-darwin-${node_arch}\.pkg" \
+                                | head -1)
+
+                            if [ -z "$pkg_file" ]; then
+                                fail "Could not determine Node.js download URL"
+                                echo -e "    ${DIM}Please install manually: https://nodejs.org/${RESET}"
+                                rm -rf "$node_tmpdir"
+                                read -rp "    Press Enter to continue..."
+                            else
+                                local pkg_url="https://nodejs.org/dist/latest-v20.x/${pkg_file}"
+                                info "Downloading ${pkg_file}..."
+                                curl -fSL -o "${node_tmpdir}/${pkg_file}" "$pkg_url"
+                                info "Installing (may require password)..."
+                                sudo installer -pkg "${node_tmpdir}/${pkg_file}" -target /
+                                # Clean up downloaded installer
+                                rm -rf "$node_tmpdir"
+                                success "Installer cleaned up"
+                            fi
+                        fi
+                        ;;
+                esac
+
+                # Verify installation
+                if command -v node &>/dev/null; then
+                    local new_node_ver
+                    new_node_ver=$(node --version 2>/dev/null | sed 's/^v//')
+                    if version_gte "$new_node_ver" "20.0.0"; then
+                        success "Node.js v${new_node_ver} installed successfully"
+                    else
+                        fail "Node.js installed but version v${new_node_ver} is still too old"
+                        read -rp "    Press Enter to continue (frontend will likely fail)..."
+                    fi
+                else
+                    fail "Node.js installation failed"
+                    read -rp "    Press Enter to continue (frontend will likely fail)..."
+                fi
+                ;;
+            *)
+                echo -e "    ${DIM}Please install Node.js >= 20 before running services.${RESET}"
+                echo -e "    ${DIM}Recommended: https://nodejs.org/ or nvm install 20${RESET}"
+                read -rp "    Press Enter to continue..."
+                ;;
+        esac
+    fi
+
+    # --- Step 5: tmux ---
     current=$((current + 1))
     step "${current}/${total_steps}" "Checking tmux"
     if command -v tmux &>/dev/null; then
@@ -744,7 +873,7 @@ do_install() {
         fi
     fi
 
-    # --- Step 5: Claude CLI (required) ---
+    # --- Step 6: Claude CLI (required) ---
     current=$((current + 1))
     step "${current}/${total_steps}" "Checking Claude CLI (core dependency)"
     if command -v claude &>/dev/null; then
@@ -784,7 +913,7 @@ do_install() {
         fi
     fi
 
-    # --- Step 6: Python dependencies ---
+    # --- Step 7: Python dependencies ---
     current=$((current + 1))
     step "${current}/${total_steps}" "Installing Python dependencies"
     if command -v uv &>/dev/null; then
@@ -796,7 +925,7 @@ do_install() {
         fail "uv is not available, cannot install Python dependencies"
     fi
 
-    # --- Step 7: Frontend dependencies ---
+    # --- Step 8: Frontend dependencies ---
     current=$((current + 1))
     step "${current}/${total_steps}" "Installing frontend dependencies"
     if [ -d "${PROJECT_ROOT}/frontend" ] && command -v npm &>/dev/null; then
@@ -809,12 +938,12 @@ do_install() {
         warn "Frontend directory not found or npm not available, skipping"
     fi
 
-    # --- Step 8: MySQL Docker ---
+    # --- Step 9: MySQL Docker ---
     current=$((current + 1))
     step "${current}/${total_steps}" "Starting MySQL database (Docker)"
     ensure_mysql
 
-    # --- Step 9: .env configuration ---
+    # --- Step 10: .env configuration ---
     current=$((current + 1))
     step "${current}/${total_steps}" "Configuring environment variables (.env)"
     if [ -f "${PROJECT_ROOT}/.env" ]; then
@@ -1338,20 +1467,52 @@ do_run() {
         read -rp "    > " port_choice
         case "$port_choice" in
             1)
-                # Kill processes on conflicting ports
+                # Step 1: Kill known project processes by pattern (handles most cases)
+                local kill_patterns=(
+                    "uvicorn.*backend.main"
+                    "module_runner.py.*mcp"
+                    "module_poller"
+                    "job_trigger.py"
+                    "node.*vite"
+                    "vite.*5173"
+                )
+                for pat in "${kill_patterns[@]}"; do
+                    pkill -f "$pat" 2>/dev/null || true
+                done
+
+                sleep 2
+
+                # Step 2: If ports still occupied, kill by PID (handles non-project processes)
                 for _port in "${conflict_ports[@]}"; do
-                    local _pid=""
-                    if [ "$OS_TYPE" = "Darwin" ]; then
-                        _pid=$(lsof -iTCP:"$_port" -sTCP:LISTEN -P -n 2>/dev/null | awk 'NR==2{print $2}')
-                    else
-                        _pid=$(ss -tlnp 2>/dev/null | grep ":${_port} " | sed 's/.*pid=//' | sed 's/,.*//' | head -1)
-                    fi
-                    if [ -n "$_pid" ]; then
-                        kill "$_pid" 2>/dev/null && info "Killed PID $_pid on port $_port" || warn "Failed to kill PID $_pid on port $_port"
+                    if is_port_up "$_port"; then
+                        local _pid=""
+                        if [ "$OS_TYPE" = "Darwin" ]; then
+                            _pid=$(lsof -iTCP:"$_port" -sTCP:LISTEN -P -n 2>/dev/null | awk 'NR==2{print $2}')
+                        else
+                            _pid=$(fuser "${_port}/tcp" 2>/dev/null | awk '{print $1}')
+                        fi
+                        if [ -n "$_pid" ]; then
+                            kill "$_pid" 2>/dev/null || sudo kill "$_pid" 2>/dev/null || true
+                            info "Killed PID $_pid on port $_port"
+                        fi
                     fi
                 done
+
                 sleep 1
-                success "Conflicting processes cleared"
+
+                # Step 3: Verify ports are actually freed
+                local still_blocked=false
+                for _port in "${conflict_ports[@]}"; do
+                    if is_port_up "$_port"; then
+                        fail "Port $_port is still occupied"
+                        still_blocked=true
+                    fi
+                done
+                if [ "$still_blocked" = true ]; then
+                    warn "Some ports could not be freed. Services may fail to start."
+                else
+                    success "All conflicting ports cleared"
+                fi
                 ;;
             3)
                 info "Aborted. Returning to menu."
@@ -1381,6 +1542,53 @@ do_run() {
             cd "$PROJECT_ROOT"
             uv run python src/xyz_agent_context/utils/database_table_management/create_all_tables.py 2>&1 | tail -5
             success "Database tables initialized"
+
+            # Check for schema changes (new version may have added/removed columns)
+            step "0.7" "Checking for database schema updates"
+            local schema_diff
+            schema_diff=$(cd "$PROJECT_ROOT" && uv run python src/xyz_agent_context/utils/database_table_management/sync_all_tables.py --check 2>/dev/null)
+            if [ $? -eq 0 ]; then
+                warn "Database schema changes detected after update:"
+                echo ""
+                echo "$schema_diff" | grep -E "^\s+([\+\-]|[a-z_]+:)" | while IFS= read -r line; do
+                    echo -e "      ${line}"
+                done
+                echo ""
+                echo -e "    ${BOLD}${WHITE}Apply schema changes?${RESET}"
+                echo -e "    ${DIM}Your data will be preserved. Only table structure (columns) will be updated.${RESET}"
+                echo ""
+                echo -e "    ${G1}[1]${RESET}  ${BOLD}Yes, apply changes${RESET}  ${DIM}(Recommended)${RESET}"
+                echo -e "    ${G3}[2]${RESET}  ${BOLD}Preview changes first (dry-run)${RESET}"
+                echo -e "    ${YELLOW}[3]${RESET}  ${BOLD}Skip for now${RESET}"
+                echo ""
+                read -rp "    > " schema_choice
+                echo ""
+                case "$schema_choice" in
+                    1)
+                        info "Applying schema changes..."
+                        cd "$PROJECT_ROOT"
+                        echo "yes" | uv run python src/xyz_agent_context/utils/database_table_management/sync_all_tables.py 2>&1 | tail -20
+                        success "Database schema updated"
+                        ;;
+                    2)
+                        cd "$PROJECT_ROOT"
+                        uv run python src/xyz_agent_context/utils/database_table_management/sync_all_tables.py --dry-run 2>&1 | tail -40
+                        echo ""
+                        read -rp "    Apply these changes? [y/N] " apply_confirm
+                        if [[ "$apply_confirm" == "y" || "$apply_confirm" == "Y" ]]; then
+                            echo "yes" | uv run python src/xyz_agent_context/utils/database_table_management/sync_all_tables.py 2>&1 | tail -20
+                            success "Database schema updated"
+                        else
+                            warn "Schema changes skipped. Services may encounter errors."
+                        fi
+                        ;;
+                    *)
+                        warn "Schema changes skipped. Services may encounter errors if columns are missing."
+                        ;;
+                esac
+            else
+                success "Database schema is up-to-date"
+            fi
         else
             warn "Skipping database table initialization (uv or .env not available)"
         fi
@@ -1455,7 +1663,7 @@ do_run() {
         }
 
         wait_for_service "MongoDB"       "$DOCKER_CMD exec memsys-mongodb mongosh --eval 'db.runCommand({ping:1})'" 60
-        wait_for_service "Redis"         "redis-cli ping" 10
+        wait_for_service "Redis"         "redis-cli ping" 30
         wait_for_service "Elasticsearch" "curl -sf http://localhost:19200/_cluster/health" 90
         wait_for_service "Milvus"        "curl -sf http://localhost:9091/healthz" 120
 
@@ -1825,22 +2033,32 @@ do_stop() {
     echo -e "  ${BOLD}${YELLOW}╚══════════════════════════════════════════════════╝${RESET}"
     echo ""
 
+    # --- Stop application processes ---
+    step "1" "Stopping application processes"
+    local stop_patterns=(
+        "uvicorn.*backend.main"      # FastAPI backend (port 8000)
+        "uvicorn.*1995"              # EverMemOS Web
+        "module_runner.py.*mcp"      # MCP server (port 7801)
+        "module_poller"              # ModulePoller
+        "job_trigger.py"             # Job trigger
+        "npm.*dev.*5173"             # Frontend dev server
+        "vite.*5173"                 # Vite (frontend actual process)
+        "node.*vite"                 # Vite node process
+    )
+    for pat in "${stop_patterns[@]}"; do
+        if pgrep -f "$pat" &>/dev/null; then
+            pkill -f "$pat" 2>/dev/null
+        fi
+    done
+    success "Application processes stopped"
+
     # --- Stop tmux session ---
-    step "1" "Stopping tmux session"
+    step "2" "Stopping tmux session"
     if tmux has-session -t "$TMUX_SESSION" 2>/dev/null; then
         tmux kill-session -t "$TMUX_SESSION"
         success "tmux session '${TMUX_SESSION}' stopped"
     else
         info "tmux session does not exist, skipping"
-    fi
-
-    # --- Stop EverMemOS Web ---
-    step "2" "Stopping EverMemOS Web service"
-    if pgrep -f "uvicorn.*1995" &>/dev/null; then
-        pkill -f "uvicorn.*1995" 2>/dev/null
-        success "EverMemOS Web stopped"
-    else
-        info "EverMemOS Web is not running"
     fi
 
     # --- Stop Docker containers ---

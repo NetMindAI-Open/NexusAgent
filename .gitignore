@@ -22,6 +22,7 @@ sessions/
 new_task/
 /docs_self
 
+/arena_debate/
 /.agents
 /.claude
 /.codex

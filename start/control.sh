@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================================
-# NexusAgent Control Panel — runs inside tmux, provides status view and quit
+# NexusMind Control Panel — runs inside tmux, provides status view and quit
 # ============================================================================
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -72,12 +72,12 @@ show_dashboard() {
     echo -e "${G1}    ██║ ╚████║${G2}███████╗${G3}██╔╝ ██╗${G4}╚██████╔╝${G5}███████║${RESET}"
     echo -e "${G1}    ╚═╝  ╚═══╝${G2}╚══════╝${G3}╚═╝  ╚═╝${G4} ╚═════╝ ${G5}╚══════╝${RESET}"
     echo ""
-    echo -e "${G3}       █████╗  ${G4} ██████╗ ${G5}███████╗${G6}███╗   ██╗████████╗${RESET}"
-    echo -e "${G3}      ██╔══██╗ ${G4}██╔════╝ ${G5}██╔════╝${G6}████╗  ██║╚══██╔══╝${RESET}"
-    echo -e "${G3}      ███████║ ${G4}██║  ███╗${G5}█████╗  ${G6}██╔██╗ ██║   ██║   ${RESET}"
-    echo -e "${G3}      ██╔══██║ ${G4}██║   ██║${G5}██╔══╝  ${G6}██║╚██╗██║   ██║   ${RESET}"
-    echo -e "${G3}      ██║  ██║ ${G4}╚██████╔╝${G5}███████╗${G6}██║ ╚████║   ██║   ${RESET}"
-    echo -e "${G3}      ╚═╝  ╚═╝ ${G4} ╚═════╝ ${G5}╚══════╝${G6}╚═╝  ╚═══╝   ╚═╝   ${RESET}"
+    echo -e "${G3}    ███╗   ███╗${G4}██╗${G5}███╗   ██╗${G6}██████╗ ${RESET}"
+    echo -e "${G3}    ████╗ ████║${G4}██║${G5}████╗  ██║${G6}██╔══██╗${RESET}"
+    echo -e "${G3}    ██╔████╔██║${G4}██║${G5}██╔██╗ ██║${G6}██║  ██║${RESET}"
+    echo -e "${G3}    ██║╚██╔╝██║${G4}██║${G5}██║╚██╗██║${G6}██║  ██║${RESET}"
+    echo -e "${G3}    ██║ ╚═╝ ██║${G4}██║${G5}██║ ╚████║${G6}██████╔╝${RESET}"
+    echo -e "${G3}    ╚═╝     ╚═╝${G4}╚═╝${G5}╚═╝  ╚═══╝${G6}╚═════╝ ${RESET}"
     echo ""
 
     # ── Access URLs (prominent display) ──
@@ -144,11 +144,23 @@ do_stop_all() {
     echo -e "  ${YELLOW}Stopping all services...${RESET}"
     echo ""
 
-    # Stop EverMemOS Web
-    if pgrep -f "uvicorn.*1995" &>/dev/null; then
-        pkill -f "uvicorn.*1995" 2>/dev/null
-        echo -e "  ${GREEN}✓${RESET} EverMemOS Web stopped"
-    fi
+    # Stop application processes (kill process trees, not just parents)
+    local patterns=(
+        "uvicorn.*backend.main"      # FastAPI backend (port 8000)
+        "uvicorn.*1995"              # EverMemOS Web
+        "module_runner.py.*mcp"      # MCP server (port 7801)
+        "module_poller"              # ModulePoller
+        "job_trigger.py"             # Job trigger
+        "npm.*dev.*5173"             # Frontend dev server
+        "vite.*5173"                 # Vite (frontend actual process)
+        "node.*vite"                 # Vite node process
+    )
+    for pat in "${patterns[@]}"; do
+        if pgrep -f "$pat" &>/dev/null; then
+            pkill -f "$pat" 2>/dev/null
+        fi
+    done
+    echo -e "  ${GREEN}✓${RESET} Application processes stopped"
 
     # Stop Docker containers
     detect_compose_cmd
@@ -172,7 +184,7 @@ do_stop_all() {
     echo -e "  ${GREEN}✓${RESET} All stopped. Closing tmux in 2 seconds..."
     sleep 2
 
-    # Close tmux session (this terminates all processes in all windows)
+    # Close tmux session
     tmux kill-session -t "$TMUX_SESSION" 2>/dev/null
 }
 

@@ -65,15 +65,15 @@ interface PreloadState {
   lastUserId: string | null;
   lastAgentId: string | null;
 
-  // Actions
+  // Actions (silent=true skips loading state toggle & deduplicates unchanged data)
   preloadAll: (agentId: string, userId: string) => Promise<void>;
-  refreshInbox: (userId: string) => Promise<void>;
-  refreshAgentInbox: (agentId: string) => Promise<void>;
-  refreshJobs: (agentId: string, userId?: string, status?: string) => Promise<void>;
-  refreshAwareness: (agentId: string) => Promise<void>;
-  refreshSocialNetwork: (agentId: string) => Promise<void>;
-  refreshChatHistory: (agentId: string, userId: string) => Promise<void>;
-  refreshRAGFiles: (agentId: string, userId: string) => Promise<void>;
+  refreshInbox: (userId: string, silent?: boolean) => Promise<void>;
+  refreshAgentInbox: (agentId: string, silent?: boolean) => Promise<void>;
+  refreshJobs: (agentId: string, userId?: string, status?: string, silent?: boolean) => Promise<void>;
+  refreshAwareness: (agentId: string, silent?: boolean) => Promise<void>;
+  refreshSocialNetwork: (agentId: string, silent?: boolean) => Promise<void>;
+  refreshChatHistory: (agentId: string, userId: string, silent?: boolean) => Promise<void>;
+  refreshRAGFiles: (agentId: string, userId: string, silent?: boolean) => Promise<void>;
   addChatHistoryEvent: (event: ChatHistoryEvent) => void;
   updateInboxMessage: (messageId: string, updates: Partial<InboxMessage>) => void;
   updateAgentInboxMessage: (messageId: string, updates: Partial<AgentInboxMessage>) => void;
@@ -86,28 +86,53 @@ interface PreloadState {
 // ────────────────────────────────────────────
 
 type SetFn = (partial: Partial<PreloadState>) => void;
+type GetFn = () => PreloadState;
 
-/** Generic "load a domain" logic */
+/**
+ * Generic "load a domain" logic.
+ *
+ * When `silent` is true (used by background polling):
+ * - Loading state is NOT toggled (no UI flicker)
+ * - Data is compared with current state; set() is skipped if unchanged (no wasted re-renders)
+ * - Errors are silently swallowed (transient network blips shouldn't disrupt UI)
+ */
 async function loadDomain<T>(
   set: SetFn,
+  get: GetFn,
   loadingKey: keyof PreloadState,
   errorKey: keyof PreloadState,
   fetcher: () => Promise<T>,
   onSuccess: (data: T) => Partial<PreloadState>,
   fallbackError: string,
+  silent = false,
 ) {
-  set({ [loadingKey]: true, [errorKey]: null } as Partial<PreloadState>);
+  if (!silent) {
+    set({ [loadingKey]: true, [errorKey]: null } as Partial<PreloadState>);
+  }
   try {
     const result = await fetcher();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if ((result as any).success) {
-      set({ ...onSuccess(result), [loadingKey]: false } as Partial<PreloadState>);
-    } else {
+      const updates = onSuccess(result);
+      if (silent) {
+        // Skip set() entirely if data hasn't changed
+        const current = get();
+        const changed = Object.entries(updates).some(
+          ([key, val]) => JSON.stringify(current[key as keyof PreloadState]) !== JSON.stringify(val),
+        );
+        if (!changed) return;
+        set(updates as Partial<PreloadState>);
+      } else {
+        set({ ...updates, [loadingKey]: false } as Partial<PreloadState>);
+      }
+    } else if (!silent) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       set({ [loadingKey]: false, [errorKey]: (result as any).error || fallbackError } as Partial<PreloadState>);
     }
   } catch (error) {
-    set({ [loadingKey]: false, [errorKey]: String(error) } as Partial<PreloadState>);
+    if (!silent) {
+      set({ [loadingKey]: false, [errorKey]: String(error) } as Partial<PreloadState>);
+    }
   }
 }
 
@@ -227,47 +252,47 @@ export const usePreloadStore = create<PreloadState>()((set, get) => ({
 
   // ── Individual refresh methods ────────────────────
 
-  refreshInbox: (userId) => loadDomain(set,
+  refreshInbox: (userId, silent?) => loadDomain(set, get,
     'inboxLoading', 'inboxError',
     () => api.getInbox(userId),
     (r) => ({ inbox: r.messages, inboxUnreadCount: r.unread_count }),
-    'Failed to load inbox'),
+    'Failed to load inbox', silent),
 
-  refreshAgentInbox: (agentId) => loadDomain(set,
+  refreshAgentInbox: (agentId, silent?) => loadDomain(set, get,
     'agentInboxLoading', 'agentInboxError',
     () => api.getAgentInbox(agentId),
     (r) => ({ agentInbox: r.messages, agentInboxUnrespondedCount: r.unresponded_count }),
-    'Failed to load agent inbox'),
+    'Failed to load agent inbox', silent),
 
-  refreshJobs: (agentId, _userId?, status?) => loadDomain(set,
+  refreshJobs: (agentId, _userId?, status?, silent?) => loadDomain(set, get,
     'jobsLoading', 'jobsError',
     () => api.getJobs(agentId, undefined, status),
     (r) => ({ jobs: r.jobs }),
-    'Failed to load jobs'),
+    'Failed to load jobs', silent),
 
-  refreshAwareness: (agentId) => loadDomain(set,
+  refreshAwareness: (agentId, silent?) => loadDomain(set, get,
     'awarenessLoading', 'awarenessError',
     () => api.getAwareness(agentId),
     (r) => ({ awareness: r.awareness || null, awarenessCreateTime: r.create_time || null, awarenessUpdateTime: r.update_time || null }),
-    'Failed to load awareness'),
+    'Failed to load awareness', silent),
 
-  refreshSocialNetwork: (agentId) => loadDomain(set,
+  refreshSocialNetwork: (agentId, silent?) => loadDomain(set, get,
     'socialNetworkLoading', 'socialNetworkError',
     () => api.getSocialNetworkList(agentId),
     (r) => ({ socialNetworkList: r.entities || [] }),
-    'No social network data'),
+    'No social network data', silent),
 
-  refreshChatHistory: (agentId, userId) => loadDomain(set,
+  refreshChatHistory: (agentId, userId, silent?) => loadDomain(set, get,
     'chatHistoryLoading', 'chatHistoryError',
     () => api.getChatHistory(agentId, userId),
     (r) => ({ chatHistoryEvents: r.events || [], chatHistoryNarratives: r.narratives || [] }),
-    'No chat history'),
+    'No chat history', silent),
 
-  refreshRAGFiles: (agentId, userId) => loadDomain(set,
+  refreshRAGFiles: (agentId, userId, silent?) => loadDomain(set, get,
     'ragFilesLoading', 'ragFilesError',
     () => api.listRAGFiles(agentId, userId),
     (r) => ({ ragFiles: r.files || [], ragCompletedCount: r.completed_count || 0, ragPendingCount: r.pending_count || 0 }),
-    'Failed to load RAG files'),
+    'Failed to load RAG files', silent),
 
   // ── Mutation helpers ──────────────────────────────
 

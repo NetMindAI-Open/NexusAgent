@@ -10,7 +10,8 @@ export type MessageType =
   | 'agent_thinking'
   | 'tool_call'
   | 'error'
-  | 'complete';
+  | 'complete'
+  | 'heartbeat';
 
 // Progress status
 export type ProgressStatus = 'running' | 'completed' | 'failed';
@@ -67,6 +68,11 @@ export interface CompleteMessage extends BaseMessage {
   message: string;
 }
 
+// Heartbeat message - keep connection alive
+export interface HeartbeatMessage extends BaseMessage {
+  type: 'heartbeat';
+}
+
 // Union type for all runtime messages
 export type RuntimeMessage =
   | ProgressMessage
@@ -74,7 +80,8 @@ export type RuntimeMessage =
   | AgentThinking
   | AgentToolCall
   | ErrorMessage
-  | CompleteMessage;
+  | CompleteMessage
+  | HeartbeatMessage;
 
 // Chat message for display
 export interface ChatMessage {

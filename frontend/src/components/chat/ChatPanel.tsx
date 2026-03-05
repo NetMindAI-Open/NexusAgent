@@ -24,7 +24,12 @@ const BOOTSTRAP_GREETING =
   "Would you like to tell me what I should be called? " +
   "And what should I call you?";
 
-export function ChatPanel() {
+interface ChatPanelProps {
+  /** Called after agent execution completes, used to trigger full data refresh */
+  onAgentComplete?: () => void;
+}
+
+export function ChatPanel({ onAgentComplete }: ChatPanelProps = {}) {
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   // Use ref to track IME composition state, avoiding React async state update delay issues
@@ -55,6 +60,7 @@ export function ChatPanel() {
       if (agentId) {
         checkAwarenessUpdate(agentId); // Check if awareness was updated (red dot)
       }
+      onAgentComplete?.(); // Trigger full data refresh
     },
     onClose: () => {
       // When WebSocket connection closes, ensure streaming state is stopped

@@ -1,0 +1,46 @@
+appId: com.narranexus.desktop
+productName: NarraNexus
+directories:
+  buildResources: resources
+  output: dist
+
+mac:
+  category: public.app-category.developer-tools
+  target:
+    - target: dmg
+      arch:
+        - universal
+  icon: resources/icon.icns
+  hardenedRuntime: true
+  entitlements: resources/entitlements.mac.plist
+  entitlementsInherit: resources/entitlements.mac.plist
+
+dmg:
+  title: "NarraNexus"
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
+
+linux:
+  target:
+    - target: AppImage
+    - target: deb
+  category: Development
+
+# Bundle entire project source into Resources/project
+extraResources:
+  - from: "../"
+    to: "project"
+    filter:
+      - "**/*"
+      - "!**/node_modules/**"
+      - "!**/.venv/**"
+      - "!**/.git/**"
+      - "!**/desktop/**"
+      - "!**/__pycache__/**"
+      - "!**/*.pyc"
+      # Note: frontend/dist/ is NOT excluded — pre-built frontend is included in the package

@@ -36,6 +36,8 @@ class Settings(BaseSettings):
     # ===== LLM API Keys =====
     openai_api_key: str = ""
     google_api_key: str = ""
+    anthropic_api_key: str = ""
+    anthropic_base_url: str = ""
 
     # ===== Database =====
     database_url: Optional[str] = None
@@ -72,7 +74,14 @@ settings = Settings()
 _ENV_SYNC = {
     "OPENAI_API_KEY": settings.openai_api_key,
     "GOOGLE_API_KEY": settings.google_api_key,
+    "ANTHROPIC_API_KEY": settings.anthropic_api_key,
+    "ANTHROPIC_BASE_URL": settings.anthropic_base_url,
 }
 for _key, _val in _ENV_SYNC.items():
     if _val and not os.environ.get(_key):
         os.environ[_key] = _val
+    elif not _val and _key in os.environ and not os.environ[_key]:
+        # 清理 os.environ 中的空值（可能由 .env 空行或 desktop getExecEnv 传入）。
+        # Claude CLI 子进程继承 os.environ，空字符串的 ANTHROPIC_API_KEY 会被 CLI
+        # 视为"已配置 API Key"而不回退到 OAuth，导致认证失败。
+        del os.environ[_key]

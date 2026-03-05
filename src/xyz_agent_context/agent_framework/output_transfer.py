@@ -2,27 +2,32 @@
 @file_name: output_transfer.py
 @author: NetMind.AI
 @date: 2025-11-15
-@description: This file contains the output transfer functions to convert different agent SDK outputs to OpenAI Agents SDK format.
+@description: 将不同 Agent SDK 的输出转换为统一的 OpenAI Agents SDK 格式。
+
+返回值为 List[Dict]，因为一条 SDK 消息可能包含多个内容块（如多个 ToolUseBlock），
+每个块对应一个独立事件。
 """
 
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 
 def output_transfer(
     message: Any,
     transfer_type: str = "claude_agent_sdk",
     streaming: bool = True
-) -> Dict[str, Any]:
+) -> List[Dict[str, Any]]:
     """
-    Transfer different agent SDK outputs to OpenAI Agents SDK format.
+    将 Agent SDK 输出转换为 OpenAI Agents SDK 格式。
+
+    返回事件列表（一条 SDK 消息可能产生多个事件，如并行工具调用）。
 
     Args:
-        message: The message object from the agent SDK
-        transfer_type: The type of transfer to perform (currently only "claude_agent_sdk" is supported)
-        streaming: Whether to output streaming format (True) or non-streaming format (False)
+        message: Agent SDK 消息对象
+        transfer_type: 转换类型
+        streaming: 是否流式输出
 
     Returns:
-        A dictionary in OpenAI Agents SDK event format
+        事件字典列表
     """
     if transfer_type == "claude_agent_sdk":
         return _claude_to_openai_agents(message, streaming=streaming)
@@ -30,56 +35,42 @@ def output_transfer(
         raise ValueError(f"Unknown transfer type: {transfer_type}")
 
 
-def _claude_to_openai_agents(message: Any, streaming: bool = True) -> Dict[str, Any]:
+def _claude_to_openai_agents(message: Any, streaming: bool = True) -> List[Dict[str, Any]]:
     """
-    Convert Claude Agent SDK message to OpenAI Agents SDK format.
+    将 Claude Agent SDK 消息转换为 OpenAI Agents SDK 格式。
 
-    Claude message types:
-    - AssistantMessage: Contains Claude's response with content blocks (TextBlock, ThinkingBlock, ToolUseBlock)
-    - UserMessage: User messages
-    - SystemMessage: System messages
-    - ResultMessage: Final result with cost information
-    - StreamEvent: Streaming events with partial content
-
-    OpenAI Agents SDK format (streaming):
-    - raw_response_event: Contains ResponseTextDeltaEvent with delta field
-    - run_item_stream_event: Contains items like tool_call_item, message_output_item, etc.
-    - agent_updated_stream_event: Agent state updates
-
-    OpenAI Agents SDK format (non-streaming):
-    - RunResult-like structure with final_output and new_items
+    返回事件列表。大多数消息产生一个事件，但 AssistantMessage（多个 ToolUseBlock）
+    和 UserMessage（多个 ToolResultBlock）可产生多个事件。
     """
-    # Get message type name
     message_type = type(message).__name__
 
     if streaming:
-        return _convert_to_streaming_event(message, message_type)
+        return _convert_to_streaming_events(message, message_type)
     else:
-        return _convert_to_non_streaming_result(message, message_type)
+        return [_convert_to_non_streaming_result(message, message_type)]
 
 
-def _convert_to_streaming_event(message: Any, message_type: str) -> Dict[str, Any]:
-    """Convert Claude message to OpenAI Agents SDK streaming event format."""
+def _convert_to_streaming_events(message: Any, message_type: str) -> List[Dict[str, Any]]:
+    """将 Claude 消息转换为流式事件列表。"""
 
     if message_type == "AssistantMessage":
-        return _convert_assistant_to_stream_event(message)
+        return _convert_assistant_to_stream_events(message)
     elif message_type == "StreamEvent":
-        return _convert_stream_event_to_stream_event(message)
+        return [_convert_stream_event_to_stream_event(message)]
     elif message_type == "ResultMessage":
-        return _convert_result_to_stream_event(message)
+        return [_convert_result_to_stream_event(message)]
     elif message_type == "SystemMessage":
-        return _convert_system_to_stream_event(message)
+        return [_convert_system_to_stream_event(message)]
     elif message_type == "UserMessage":
-        return _convert_user_to_stream_event(message)
+        return _convert_user_to_stream_events(message)
     else:
-        # Unknown message type
-        return {
+        return [{
             "type": "raw_response_event",
             "data": {
                 "type": "response.text.delta",
                 "delta": f"[Unknown message type: {message_type}]"
             }
-        }
+        }]
 
 
 def _convert_to_non_streaming_result(message: Any, message_type: str) -> Dict[str, Any]:
@@ -146,31 +137,40 @@ def _convert_to_non_streaming_result(message: Any, message_type: str) -> Dict[st
     return result
 
 
-def _convert_assistant_to_stream_event(message: Any) -> Dict[str, Any]:
-    """Convert Claude AssistantMessage to OpenAI Agents SDK stream event.
+def _convert_assistant_to_stream_events(message: Any) -> List[Dict[str, Any]]:
+    """将 Claude AssistantMessage 转换为流式事件列表。
 
-    With include_partial_messages=True, text and thinking content arrives twice:
-    first via StreamEvents (token-by-token), then again in the complete AssistantMessage.
-    To avoid duplication, we skip TextBlock and ThinkingBlock here (already streamed),
-    and only emit ToolUseBlock events (needed for the Steps panel).
+    include_partial_messages=True 时，文本和思考内容会到达两次：
+    先通过 StreamEvent（逐 token），再通过完整 AssistantMessage。
+    因此这里跳过 TextBlock 和 ThinkingBlock（已经流式过了），
+    只提取所有 ToolUseBlock 事件（用于 Steps 面板）。
+
+    注意：partial AssistantMessage 也会携带 ToolUseBlock，导致同一个 tool_call_id
+    出现多次。去重逻辑在 xyz_claude_agent_sdk.py 的 agent_loop 中处理。
     """
 
-    if not hasattr(message, 'content') or not message.content:
-        return {
+    # 检查 AssistantMessage.error 字段（认证失败、额度不足、限流等）
+    if hasattr(message, 'error') and message.error is not None:
+        error_text = f"[Claude API Error: {message.error}]"
+        return [{
             "type": "raw_response_event",
             "data": {
                 "type": "response.text.delta",
-                "delta": ""
+                "delta": error_text
             }
-        }
+        }]
 
-    # Iterate all blocks, skip Text/Thinking (already streamed), return first ToolUseBlock
+    if not hasattr(message, 'content') or not message.content:
+        return [_empty_delta()]
+
+    # 提取所有 ToolUseBlock，每个生成一个 tool_call_item 事件
+    events: List[Dict[str, Any]] = []
     for block in message.content:
         block_type = type(block).__name__
 
         if block_type == "ToolUseBlock":
             if hasattr(block, 'id') and hasattr(block, 'name') and hasattr(block, 'input'):
-                return {
+                events.append({
                     "type": "run_item_stream_event",
                     "item": {
                         "type": "tool_call_item",
@@ -178,18 +178,11 @@ def _convert_assistant_to_stream_event(message: Any) -> Dict[str, Any]:
                         "tool_name": block.name,
                         "arguments": block.input
                     }
-                }
+                })
+        # TextBlock, ThinkingBlock → 跳过（已通过 StreamEvent 流式传输）
 
-        # TextBlock, ThinkingBlock → skip (already streamed via StreamEvents)
-
-    # No ToolUseBlock found; return empty delta (content already streamed)
-    return {
-        "type": "raw_response_event",
-        "data": {
-            "type": "response.text.delta",
-            "delta": ""
-        }
-    }
+    # 没有 ToolUseBlock 时返回空 delta（内容已通过 StreamEvent 流式传输）
+    return events if events else [_empty_delta()]
 
 
 def _convert_stream_event_to_stream_event(message: Any) -> Dict[str, Any]:
@@ -300,10 +293,15 @@ def _convert_system_to_stream_event(message: Any) -> Dict[str, Any]:
     }
 
 
-def _convert_user_to_stream_event(message: Any) -> Dict[str, Any]:
-    """Convert Claude UserMessage to OpenAI Agents SDK stream event."""
+def _convert_user_to_stream_events(message: Any) -> List[Dict[str, Any]]:
+    """将 Claude UserMessage 转换为流式事件列表。
 
-    text_parts = []
+    一条 UserMessage 可能包含多个 ToolResultBlock（并行工具调用的结果），
+    每个 ToolResultBlock 生成一个独立的 tool_call_output_item 事件。
+    """
+
+    events: List[Dict[str, Any]] = []
+    text_parts: list[str] = []
 
     if hasattr(message, 'content') and message.content:
         for block in message.content:
@@ -312,21 +310,35 @@ def _convert_user_to_stream_event(message: Any) -> Dict[str, Any]:
             if block_type == "TextBlock" and hasattr(block, 'text'):
                 text_parts.append(block.text)
             elif block_type == "ToolResultBlock" and hasattr(block, 'content'):
-                # Tool result
-                return {
+                events.append({
                     "type": "run_item_stream_event",
                     "item": {
                         "type": "tool_call_output_item",
                         "output": str(block.content)
                     }
-                }
+                })
 
+    # 如果有 ToolResultBlock 事件，直接返回（文本内容通常是内部消息，不需要展示）
+    if events:
+        return events
+
+    # 没有 ToolResultBlock 时，返回文本内容
     content = "\n".join(text_parts) if text_parts else ""
-
-    return {
+    return [{
         "type": "raw_response_event",
         "data": {
             "type": "response.text.delta",
             "delta": content
+        }
+    }]
+
+
+def _empty_delta() -> Dict[str, Any]:
+    """返回空的 text delta 事件"""
+    return {
+        "type": "raw_response_event",
+        "data": {
+            "type": "response.text.delta",
+            "delta": ""
         }
     }

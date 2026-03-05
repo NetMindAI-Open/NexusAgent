@@ -19,23 +19,21 @@ import {
   RefreshCw,
   Calendar,
   Ban,
-  Loader2,
   List,
   GitBranch,
   GanttChartSquare,
   Zap,
   TrendingUp,
   AlertCircle,
-  Users,
-  FileText,
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent, Button, Badge } from '@/components/ui';
 import { useConfigStore, usePreloadStore } from '@/stores';
-import { cn, formatRelativeTime } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import { api } from '@/lib/api';
 import { JobDependencyGraph } from './JobDependencyGraph';
 import { JobExecutionTimeline } from './JobExecutionTimeline';
 import { JobDetailPanel } from './JobDetailPanel';
+import { JobExpandedDetail } from './JobExpandedDetail';
 import type { JobNode, JobNodeStatus } from '@/types/jobComplex';
 import type { Job } from '@/types/api';
 
@@ -529,101 +527,12 @@ export function JobsPanel() {
                         )}
 
                         {isExpanded && (
-                          <div className="mt-4 space-y-3 text-xs animate-fade-in">
-                            <div className="grid grid-cols-2 gap-3 p-3 bg-[var(--bg-sunken)] rounded-lg border border-[var(--border-subtle)] font-mono">
-                              <div>
-                                <span className="text-[var(--text-tertiary)]">Type:</span>{' '}
-                                <span className="text-[var(--accent-primary)]">
-                                  {job.job_type}
-                                </span>
-                              </div>
-                              {job.trigger_config?.trigger_type && (
-                                <div>
-                                  <span className="text-[var(--text-tertiary)]">Trigger:</span>{' '}
-                                  <span className="text-[var(--accent-secondary)]">
-                                    {job.trigger_config.trigger_type}
-                                  </span>
-                                </div>
-                              )}
-                              {job.next_run_time && (
-                                <div className="col-span-2">
-                                  <span className="text-[var(--text-tertiary)]">Next run:</span>{' '}
-                                  <span className="text-[var(--color-success)]">
-                                    {formatRelativeTime(job.next_run_time)}
-                                  </span>
-                                </div>
-                              )}
-                              {job.last_run_time && (
-                                <div className="col-span-2">
-                                  <span className="text-[var(--text-tertiary)]">Last run:</span>{' '}
-                                  <span className="text-[var(--text-secondary)]">
-                                    {formatRelativeTime(job.last_run_time)}
-                                  </span>
-                                </div>
-                              )}
-                              {job.last_error && (
-                                <div className="col-span-2 p-2 bg-[var(--color-error)]/10 rounded-lg border border-[var(--color-error)]/20">
-                                  <span className="text-[var(--color-error)] font-medium">Error:</span>{' '}
-                                  <span className="text-[var(--text-secondary)]">
-                                    {job.last_error}
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Target User - Execution Identity */}
-                            {job.related_entity_id && (
-                              <div className="p-3 bg-[var(--accent-primary)]/5 rounded-lg border border-[var(--accent-primary)]/20">
-                                <div className="text-[9px] text-[var(--accent-primary)] font-medium uppercase tracking-wider flex items-center gap-1.5 mb-2">
-                                  <Users className="w-3 h-3" />
-                                  Target User (Execution Identity)
-                                </div>
-                                <span
-                                  className="inline-flex items-center px-2 py-1 text-[9px] rounded-lg bg-[var(--accent-primary)]/10 text-[var(--accent-primary)] border border-[var(--accent-primary)]/20 font-mono"
-                                  title={job.related_entity_id}
-                                >
-                                  {job.related_entity_id.length > 20 ? `${job.related_entity_id.slice(0, 20)}...` : job.related_entity_id}
-                                </span>
-                              </div>
-                            )}
-
-                            {/* Linked Narrative - Associated conversation context */}
-                            {job.narrative_id && (
-                              <div className="p-3 bg-[var(--accent-secondary)]/5 rounded-lg border border-[var(--accent-secondary)]/20">
-                                <div className="text-[9px] text-[var(--accent-secondary)] font-medium uppercase tracking-wider flex items-center gap-1.5 mb-2">
-                                  <FileText className="w-3 h-3" />
-                                  Linked Narrative
-                                </div>
-                                <span className="text-[10px] font-mono text-[var(--text-secondary)]">
-                                  {job.narrative_id}
-                                </span>
-                              </div>
-                            )}
-
-                            {canCancel(job.status) && (
-                              <div className="pt-3 border-t border-[var(--border-subtle)]">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={(e) => handleCancelJob(e, job.job_id)}
-                                  disabled={isCancelling}
-                                  className="text-[var(--color-error)] hover:bg-[var(--color-error)]/10 hover:shadow-[0_0_10px_var(--color-error)/20]"
-                                >
-                                  {isCancelling ? (
-                                    <>
-                                      <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />
-                                      Cancelling...
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Ban className="w-3 h-3 mr-1.5" />
-                                      Cancel Job
-                                    </>
-                                  )}
-                                </Button>
-                              </div>
-                            )}
-                          </div>
+                          <JobExpandedDetail
+                            job={job}
+                            isCancelling={isCancelling}
+                            canCancel={canCancel(job.status)}
+                            onCancel={handleCancelJob}
+                          />
                         )}
                       </div>
                     </div>

@@ -26,6 +26,7 @@ dependencies = [
     "google-genai>=1.0.0",
     "fastmcp>=2.14.1",
     "numpy>=1.26.0",
+    "httpx[socks]",
 ]
 
 [tool.hatch.build.targets.wheel]

@@ -243,7 +243,7 @@ export function UserInboxPopover() {
                         <Button
                           variant="accent"
                           size="sm"
-                          onClick={() => handleGoToAgent(selectedMessage.source!.id)}
+                          onClick={() => handleGoToAgent(selectedMessage.source!.id!)}
                           className="gap-2"
                           glow
                         >

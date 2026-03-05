@@ -23,6 +23,7 @@ import { ContextPanelHeader, type ContextTab } from './ContextPanelHeader';
 import { ContextPanelContent } from './ContextPanelContent';
 import { ChatPanel } from '@/components/chat';
 import { useConfigStore, usePreloadStore } from '@/stores';
+import { useAutoRefresh } from '@/hooks';
 
 export function MainLayout() {
   const [contextTab, setContextTab] = useState<ContextTab>('runtime');
@@ -38,6 +39,9 @@ export function MainLayout() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentId, userId]);
 
+  // Smart auto-refresh: tiered polling + visibility API
+  const { refreshAll } = useAutoRefresh({ agentId, userId });
+
   return (
     <div className="h-screen flex bg-[var(--bg-deep)] relative overflow-hidden">
       {/* Sidebar - Agent List */}
@@ -47,7 +51,7 @@ export function MainLayout() {
       <main className="flex-1 flex min-w-0 p-4 gap-4 overflow-hidden relative z-10">
         {/* Chat Panel - Main area, takes up more space */}
         <div className="flex-[3] min-w-[400px] animate-fade-in">
-          <ChatPanel />
+          <ChatPanel onAgentComplete={refreshAll} />
         </div>
 
         {/* Context Panel - Right side panel */}

@@ -15,7 +15,7 @@ interface DialogProps {
   title?: string;
   children: ReactNode;
   className?: string;
-  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl';
+  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl' | '5xl' | '6xl';
 }
 
 export function Dialog({ isOpen, onClose, title, children, className, size = 'md' }: DialogProps) {

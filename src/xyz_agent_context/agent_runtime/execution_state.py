@@ -26,6 +26,7 @@ class ExecutionState:
         final_output: Final text output (cumulative)
         response_count: Total number of responses received
         tool_call_count: Number of tool calls
+        tool_output_count: Number of tool outputs (用于 tool_output 的 step ID 匹配)
         thinking_count: Number of thinking processes
         all_steps: Records of all execution steps
 
@@ -38,6 +39,7 @@ class ExecutionState:
     final_output: str = ""
     response_count: int = 0
     tool_call_count: int = 0
+    tool_output_count: int = 0
     thinking_count: int = 0
     all_steps: tuple = field(default_factory=tuple)  # Use tuple for immutability
 
@@ -55,6 +57,7 @@ class ExecutionState:
             final_output=self.final_output + text,
             response_count=self.response_count + 1,
             tool_call_count=self.tool_call_count,
+            tool_output_count=self.tool_output_count,
             thinking_count=self.thinking_count,
             all_steps=self.all_steps,
         )
@@ -70,6 +73,7 @@ class ExecutionState:
             final_output=self.final_output,
             response_count=self.response_count + 1,
             tool_call_count=self.tool_call_count,
+            tool_output_count=self.tool_output_count,
             thinking_count=self.thinking_count,
             all_steps=self.all_steps,
         )
@@ -96,6 +100,7 @@ class ExecutionState:
             final_output=self.final_output,
             response_count=self.response_count + 1,
             tool_call_count=self.tool_call_count + 1,
+            tool_output_count=self.tool_output_count,
             thinking_count=self.thinking_count,
             all_steps=self.all_steps + (new_step,),
         )
@@ -118,6 +123,7 @@ class ExecutionState:
             final_output=self.final_output,
             response_count=self.response_count + 1,
             tool_call_count=self.tool_call_count,
+            tool_output_count=self.tool_output_count + 1,
             thinking_count=self.thinking_count,
             all_steps=self.all_steps + (new_step,),
         )
@@ -145,6 +151,7 @@ class ExecutionState:
             final_output=self.final_output,
             response_count=self.response_count + 1,
             tool_call_count=self.tool_call_count,
+            tool_output_count=self.tool_output_count,
             thinking_count=self.thinking_count + 1,
             all_steps=self.all_steps + (new_step,),
         )
@@ -168,6 +175,7 @@ class ExecutionState:
             final_output=self.final_output,
             response_count=self.response_count,
             tool_call_count=self.tool_call_count,
+            tool_output_count=self.tool_output_count,
             thinking_count=self.thinking_count,
             all_steps=self.all_steps + (final_step,),
         )

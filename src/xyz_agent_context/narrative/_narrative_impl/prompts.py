@@ -246,44 +246,43 @@ class UnifiedMatchOutput(BaseModel):
 # Narrative Update - Narrative metadata incremental update prompt
 # Used in NarrativeUpdater._call_llm_for_update()
 # ============================================================================
-NARRATIVE_UPDATE_INSTRUCTIONS = """You are a conversation analysis expert responsible for maintaining the metadata of conversation Narratives.
+NARRATIVE_UPDATE_INSTRUCTIONS = """You are a Narrative metadata maintainer. Your job is to keep Narrative records concise, structured, and information-dense.
 
-## Core Principle: Incremental Update
-This is an **incremental update** task. You must:
-- **Preserve and extend** existing information, not replace it
-- **Combine** historically accumulated information + latest conversation content
-- Information volume should be **increasing**; summaries should become more complete over time
+## Principles
+- **Structured over prose**: Use bullet points, key-value pairs, and short fragments. Never write paragraphs.
+- **Incremental**: Preserve existing facts, append new ones, remove outdated ones.
+- **No filler**: No introductory phrases, no "the user discussed...", no "this narrative is about...". Just facts.
 
-## Task
-Based on the **existing Narrative information** and the **latest conversation content**, update the following fields:
+## Fields to Update
 
-1. **name**: Short conversation topic name (3-10 words)
-   - Summarize the core theme of the entire conversation
-   - If the theme hasn't fundamentally changed, keep the original name
-   - Only adjust when the conversation direction has clearly shifted
+### 1. name (3-8 words)
+Core topic of the conversation. Keep stable unless topic fundamentally shifts.
 
-2. **current_summary**: Complete summary of the current conversation (50-200 words)
-   - **Important**: **Append** new developments to the existing summary, do not rewrite
-   - Include: historical topics + latest progress + key decisions/conclusions
-   - Information should become richer over time, reflecting the complete conversation trajectory
+### 2. current_summary (structured bullet format)
+Write as a structured fact sheet, NOT a paragraph. Use this format:
+```
+Topic: <one-line core topic>
+Key facts:
+- <fact 1>
+- <fact 2>
+- ...
+Decisions: <any decisions made, or omit if none>
+Status: <current state of the task/conversation>
+```
+Rules:
+- Each bullet = one atomic fact (who/what/when/where/how)
+- Max 8-12 bullets. Drop stale facts to make room for new ones.
+- Include concrete details: names, numbers, tech terms, tool names
+- NO narrative prose, NO "the user asked about...", NO "they discussed..."
 
-3. **topic_keywords**: Topic keyword list (5-12 items)
-   - **Retain** existing relevant keywords
-   - **Add** key concepts from the new conversation
-   - Keyword count should increase as the conversation deepens
+### 3. topic_keywords (5-10 items)
+Concrete nouns and terms for retrieval. Keep existing relevant ones, add new ones.
 
-4. **actors**: Conversation participant list
-   - Include user (user), Agent (agent)
-   - **Accumulate** important entities mentioned in the conversation (person names, project names, tool names, etc.)
+### 4. actors
+User, Agent, and any important named entities mentioned (people, projects, tools, organizations).
 
-5. **dynamic_summary_entry**: One-sentence summary of this conversation turn
-   - Briefly summarize the core content of **this round** of conversation (one sentence)
-   - This is an incremental entry for tracking conversation evolution
-
-## Output Requirements
-- Keep it concise and accurate
-- Use original terms for technical terminology
-- **Remember**: Extend on the existing basis, do not rewrite from scratch
+### 5. dynamic_summary_entry
+One short sentence: what happened this turn. E.g. "User requested dark mode; Agent implemented it."
 """
 
 # ============================================================================

@@ -11,8 +11,12 @@ Usage:
     uvicorn backend.main:app --reload --port 8000
 """
 
-from fastapi import FastAPI
+from pathlib import Path
+
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from loguru import logger
 
@@ -50,14 +54,16 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Configure CORS for React dev server
+# Configure CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:5173",  # Vite dev server
         "http://localhost:3000",  # Alternative dev port
+        "http://localhost:8000",  # Backend serves frontend
         "http://127.0.0.1:5173",
         "http://127.0.0.1:3000",
+        "http://127.0.0.1:8000",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -83,16 +89,6 @@ app.include_router(agent_inbox_router, prefix="/api/agent-inbox", tags=["Agent I
 app.include_router(skills_router, prefix="/api/skills", tags=["Skills"])
 
 
-@app.get("/")
-async def root():
-    """Health check endpoint"""
-    return {
-        "status": "ok",
-        "service": "Agent Context API",
-        "version": "1.0.0",
-    }
-
-
 @app.get("/health")
 async def health():
     """Detailed health check"""
@@ -100,6 +96,43 @@ async def health():
         "status": "healthy",
         "database": "connected",
     }
+
+
+# ─── 前端静态文件 & SPA fallback ──────────────────────────
+# 在所有 API 路由之后挂载，确保 /api/* 和 /ws/* 优先匹配
+
+# 前端构建产物目录（支持本地开发和打包后两种路径）
+_FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+
+if _FRONTEND_DIST.is_dir() and (_FRONTEND_DIST / "index.html").exists():
+    logger.info(f"Serving frontend from {_FRONTEND_DIST}")
+
+    # 挂载静态资源（JS/CSS/图片等）
+    app.mount("/assets", StaticFiles(directory=_FRONTEND_DIST / "assets"), name="frontend-assets")
+
+    @app.get("/{full_path:path}")
+    async def spa_fallback(request: Request, full_path: str):
+        """
+        SPA fallback：非 API/WS 请求一律返回 index.html，
+        由前端路由处理页面导航。
+        """
+        # 尝试返回静态文件（favicon.ico 等根目录文件）
+        file_path = _FRONTEND_DIST / full_path
+        if full_path and file_path.is_file():
+            return FileResponse(file_path)
+        # 其余全部返回 index.html
+        return FileResponse(_FRONTEND_DIST / "index.html")
+else:
+    logger.info("Frontend dist not found, API-only mode")
+
+    @app.get("/")
+    async def root():
+        """Health check endpoint (no frontend)"""
+        return {
+            "status": "ok",
+            "service": "Agent Context API",
+            "version": "1.0.0",
+        }
 
 
 if __name__ == "__main__":

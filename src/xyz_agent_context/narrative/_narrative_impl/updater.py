@@ -54,27 +54,31 @@ class ActorOutput(BaseModel):
 
 class NarrativeUpdateOutput(BaseModel):
     """
-    LLM-generated Narrative update content
+    LLM 生成的 Narrative 更新内容
 
-    Used for dynamically updating Narrative metadata as the conversation evolves.
+    用于随着对话演进动态更新 Narrative 元数据。
     """
     name: str = Field(
-        description="Short name for the Narrative (3-10 words), summarizing the conversation topic"
+        description="Short name for the Narrative (3-8 words), the core topic"
     )
     current_summary: str = Field(
-        description="Summary of the current conversation (50-150 words), including main topics, progress, and key information"
+        description=(
+            "Structured fact sheet in bullet format. "
+            "Format: 'Topic: ...\\nKey facts:\\n- fact1\\n- fact2\\n...\\nStatus: ...' "
+            "Max 8-12 bullets. No paragraphs, no filler. Just atomic facts."
+        )
     )
     topic_keywords: List[str] = Field(
         default_factory=list,
-        description="Topic keyword list (3-8 items), used for retrieval matching"
+        description="Concrete topic keywords (5-10 items) for retrieval matching"
     )
     actors: List[ActorOutput] = Field(
         default_factory=list,
-        description="Conversation participant list, including users, Agents, and mentioned entities"
+        description="Participants: users, Agents, and important named entities mentioned"
     )
     dynamic_summary_entry: str = Field(
         default="",
-        description="Short summary of this conversation turn (one sentence), used for dynamic_summary"
+        description="One short sentence summarizing this turn, e.g. 'User requested X; Agent did Y.'"
     )
 
 

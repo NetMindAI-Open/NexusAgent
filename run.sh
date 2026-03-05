@@ -75,6 +75,180 @@ version_gte() {
 }
 
 # ============================================================================
+# Compute Colima resource allocation (~50% system resources, clamped)
+#   Output: "CPU MEMORY_GB"  e.g. "4 6"
+# ============================================================================
+get_colima_resources() {
+    local total_cpu total_mem_kb mem_gb
+    if [ "$OS_TYPE" = "Darwin" ]; then
+        total_cpu=$(sysctl -n hw.ncpu 2>/dev/null || echo 4)
+        total_mem_kb=$(( $(sysctl -n hw.memsize 2>/dev/null || echo 8589934592) / 1024 ))
+    else
+        total_cpu=$(nproc 2>/dev/null || echo 4)
+        total_mem_kb=$(grep MemTotal /proc/meminfo 2>/dev/null | awk '{print $2}')
+        total_mem_kb=${total_mem_kb:-8388608}
+    fi
+    local cpu=$(( total_cpu / 2 ))
+    [ "$cpu" -lt 2 ] && cpu=2
+    [ "$cpu" -gt 8 ] && cpu=8
+    mem_gb=$(( total_mem_kb / 1024 / 1024 / 2 ))
+    [ "$mem_gb" -lt 2 ] && mem_gb=2
+    [ "$mem_gb" -gt 12 ] && mem_gb=12
+    echo "$cpu $mem_gb"
+}
+
+# ============================================================================
+# Wait for Docker daemon to become ready (poll docker info)
+#   Args: max_seconds (default 60)
+#   Returns: 0=ready  1=timeout
+# ============================================================================
+wait_for_docker() {
+    local max_wait="${1:-60}"
+    local elapsed=0
+    printf "    Waiting for Docker daemon "
+    while ! docker info &>/dev/null 2>&1; do
+        if [ $elapsed -ge $max_wait ]; then
+            echo -e " ${YELLOW}Timeout${RESET}"
+            return 1
+        fi
+        printf "."
+        sleep 2
+        elapsed=$((elapsed + 2))
+    done
+    echo -e " ${GREEN}Ready${RESET}"
+    return 0
+}
+
+# ============================================================================
+# macOS Docker multi-strategy automatic installation
+#
+# Strategies (tried in order):
+#   1. Launch existing Docker Desktop
+#   2. Launch existing Colima
+#   3. Brew install Colima + Docker CLI + Compose
+#   4. Download Docker Desktop .dmg and install
+#   Falls through to manual instructions if all fail
+# ============================================================================
+install_docker_macos() {
+    local arch
+    arch="$(uname -m)"  # arm64 or x86_64
+
+    # --- Strategy 1: Launch Docker Desktop if already installed ---
+    info "Strategy 1: Checking for Docker Desktop..."
+    if open -Ra Docker 2>/dev/null; then
+        info "Docker Desktop found, launching..."
+        open -a Docker
+        if wait_for_docker 60; then
+            success "Docker Desktop started successfully"
+            return 0
+        fi
+        warn "Docker Desktop launched but daemon did not become ready"
+    else
+        info "Docker Desktop not installed, skipping"
+    fi
+
+    # --- Strategy 2: Launch existing Colima ---
+    info "Strategy 2: Checking for Colima..."
+    if command -v colima &>/dev/null; then
+        info "Colima found, starting..."
+        local resources
+        resources=$(get_colima_resources)
+        local cpu mem
+        cpu=$(echo "$resources" | awk '{print $1}')
+        mem=$(echo "$resources" | awk '{print $2}')
+        info "Allocating ${cpu} CPUs, ${mem}GB memory"
+        if colima start --cpu "$cpu" --memory "$mem" 2>&1; then
+            if docker info &>/dev/null 2>&1; then
+                success "Colima started successfully"
+                return 0
+            fi
+        fi
+        warn "Colima start failed"
+    else
+        info "Colima not installed, skipping"
+    fi
+
+    # --- Strategy 3: Brew install Colima + Docker + Compose ---
+    info "Strategy 3: Checking Homebrew..."
+    if command -v brew &>/dev/null; then
+        # Skip Intel Homebrew on Apple Silicon (would install x86 binaries via Rosetta)
+        local brew_prefix
+        brew_prefix="$(brew --prefix 2>/dev/null)"
+        if [ "$arch" = "arm64" ] && [ "$brew_prefix" = "/usr/local" ]; then
+            warn "Detected Intel Homebrew on Apple Silicon — skipping to avoid Rosetta issues"
+        else
+            info "Installing Colima + Docker via Homebrew..."
+            brew install colima docker docker-compose 2>&1 || true
+            if command -v colima &>/dev/null; then
+                local resources
+                resources=$(get_colima_resources)
+                local cpu mem
+                cpu=$(echo "$resources" | awk '{print $1}')
+                mem=$(echo "$resources" | awk '{print $2}')
+                info "Starting Colima (${cpu} CPUs, ${mem}GB memory)..."
+                colima start --cpu "$cpu" --memory "$mem" 2>&1 || true
+                if docker info &>/dev/null 2>&1; then
+                    success "Docker installed and started via Colima"
+                    return 0
+                fi
+            fi
+            warn "Homebrew install succeeded but Docker daemon not ready"
+        fi
+    else
+        info "Homebrew not installed, skipping"
+    fi
+
+    # --- Strategy 4: Download and install Docker Desktop .dmg ---
+    info "Strategy 4: Downloading Docker Desktop .dmg..."
+    local dmg_arch="arm64"
+    [ "$arch" = "x86_64" ] && dmg_arch="amd64"
+    local dmg_url="https://desktop.docker.com/mac/main/${dmg_arch}/Docker.dmg"
+    local dmg_tmp="/tmp/Docker_$$.dmg"
+
+    info "Downloading from ${dmg_url}..."
+    if curl -fSL -o "$dmg_tmp" "$dmg_url"; then
+        info "Mounting disk image..."
+        local mount_point
+        mount_point=$(hdiutil mount "$dmg_tmp" 2>/dev/null | tail -1 | awk '{print $NF}')
+        if [ -d "$mount_point/Docker.app" ]; then
+            info "Installing Docker.app (may require password)..."
+            sudo cp -R "$mount_point/Docker.app" /Applications/
+            hdiutil detach "$mount_point" 2>/dev/null || true
+            rm -f "$dmg_tmp"
+            info "Launching Docker Desktop..."
+            open -a Docker
+            if wait_for_docker 120; then
+                success "Docker Desktop installed and started"
+                return 0
+            fi
+            warn "Docker Desktop installed but daemon did not start in time"
+        else
+            warn "Could not find Docker.app in mounted image"
+            hdiutil detach "$mount_point" 2>/dev/null || true
+            rm -f "$dmg_tmp"
+        fi
+    else
+        warn "Docker Desktop download failed"
+        rm -f "$dmg_tmp" 2>/dev/null || true
+    fi
+
+    # --- All strategies failed ---
+    fail "All automatic Docker installation strategies failed"
+    echo ""
+    echo -e "    Please install Docker manually:"
+    echo -e "    ${WHITE}https://www.docker.com/products/docker-desktop/${RESET}"
+    echo -e "    ${DIM}Or via Homebrew: brew install --cask docker${RESET}"
+    echo ""
+    read -rp "    Press Enter after installing Docker..."
+    if command -v docker &>/dev/null && docker info &>/dev/null 2>&1; then
+        success "Docker is now available"
+        return 0
+    fi
+    warn "Docker still not detected. Docker-related steps may fail."
+    return 1
+}
+
+# ============================================================================
 # Color Definitions
 # ============================================================================
 BOLD='\033[1m'
@@ -200,15 +374,54 @@ check_docker_health() {
         return 2
     fi
 
-    # 2. Check if Docker daemon is running
+    # 2. Check if Docker daemon is running — auto-start if not
     if ! docker info &>/dev/null 2>&1 && ! sudo docker info &>/dev/null 2>&1; then
-        fail "Docker daemon is not running"
+        warn "Docker daemon is not running, attempting to start..."
         if [ "$OS_TYPE" = "Darwin" ]; then
-            info "  Please start Docker Desktop"
+            # Try Docker Desktop first, then Colima
+            if open -Ra Docker 2>/dev/null; then
+                info "Launching Docker Desktop..."
+                open -a Docker
+                if wait_for_docker 30; then
+                    success "Docker Desktop started"
+                else
+                    fail "Docker Desktop did not start in time"
+                    return 2
+                fi
+            elif command -v colima &>/dev/null; then
+                info "Starting Colima..."
+                local resources
+                resources=$(get_colima_resources)
+                local cpu mem
+                cpu=$(echo "$resources" | awk '{print $1}')
+                mem=$(echo "$resources" | awk '{print $2}')
+                colima start --cpu "$cpu" --memory "$mem" 2>&1 || true
+                if ! docker info &>/dev/null 2>&1; then
+                    fail "Colima started but Docker daemon not ready"
+                    return 2
+                fi
+            else
+                fail "Docker daemon is not running and no runtime found to start"
+                info "  Please install and start Docker Desktop or Colima"
+                return 2
+            fi
         else
-            info "  Try: sudo systemctl start docker"
+            # Linux: try systemctl
+            if command -v systemctl &>/dev/null; then
+                systemctl start docker 2>/dev/null || sudo systemctl start docker 2>/dev/null || true
+                sleep 2
+                if ! docker info &>/dev/null 2>&1 && ! sudo docker info &>/dev/null 2>&1; then
+                    fail "Docker daemon failed to start"
+                    info "  Try: sudo systemctl start docker"
+                    return 2
+                fi
+                success "Docker daemon started via systemctl"
+            else
+                fail "Docker daemon is not running"
+                info "  Try: sudo service docker start"
+                return 2
+            fi
         fi
-        return 2
     fi
 
     detect_docker_permission
@@ -698,6 +911,16 @@ do_install() {
                     sudo usermod -aG docker "$USER" 2>/dev/null || true
                     success "Docker installed successfully"
                     warn "Current user added to docker group. You may need to re-login for it to take effect."
+                    # Install docker-compose-plugin
+                    info "Installing docker-compose-plugin..."
+                    sudo apt-get install -y docker-compose-plugin 2>/dev/null \
+                        || sudo yum install -y docker-compose-plugin 2>/dev/null \
+                        || true
+                    # Start daemon
+                    info "Starting Docker daemon..."
+                    sudo systemctl start docker 2>/dev/null \
+                        || sudo service docker start 2>/dev/null \
+                        || true
                     # Verify after install
                     check_docker_health || true
                 else
@@ -707,19 +930,10 @@ do_install() {
                 fi
                 ;;
             macos)
-                fail "Docker is not installed"
-                echo ""
-                echo -e "    macOS: Please install ${BOLD}Docker Desktop${RESET}:"
-                echo -e "    ${WHITE}https://www.docker.com/products/docker-desktop/${RESET}"
-                echo ""
-                echo -e "    ${DIM}Or via Homebrew:${RESET}"
-                echo -e "    ${WHITE}brew install --cask docker${RESET}"
-                echo ""
-                read -rp "    Press Enter after installing Docker..."
+                info "Installing Docker (macOS) — trying multiple strategies..."
+                install_docker_macos
                 if command -v docker &>/dev/null; then
                     check_docker_health || true
-                else
-                    warn "Docker still not detected. Docker-related steps may fail."
                 fi
                 ;;
         esac
@@ -872,35 +1086,38 @@ do_install() {
     if command -v claude &>/dev/null; then
         success "Claude CLI is installed ($(claude -v 2>/dev/null || echo 'unknown version'))"
     else
-        if command -v npm &>/dev/null; then
-            info "Installing Claude CLI..."
-            npm install -g @anthropic-ai/claude-code
+        local claude_installed=false
+
+        # Strategy 1: Official install script (no npm dependency)
+        info "Installing Claude CLI via official install script..."
+        if curl -fsSL https://claude.ai/install.sh | sh 2>&1; then
+            # Refresh PATH to pick up newly installed binary
+            export PATH="$HOME/.claude/bin:$HOME/.local/bin:$PATH"
             if command -v claude &>/dev/null; then
-                success "Claude CLI installed successfully"
-            else
-                fail "Claude CLI installation failed"
-                echo ""
-                echo "    Claude Code is the core Agent runtime for this project."
-                echo "    Without it, the system cannot function. Please install manually:"
-                echo ""
-                echo "      npm install -g @anthropic-ai/claude-code"
-                echo ""
-                echo "    If npm global install has permission issues, try:"
-                echo "      sudo npm install -g @anthropic-ai/claude-code"
-                echo "      # Or configure npm prefix:"
-                echo "      npm config set prefix ~/.npm-global"
-                echo "      export PATH=\$HOME/.npm-global/bin:\$PATH"
-                echo ""
-                read -rp "    Press Enter to continue (but subsequent runs may fail)..."
+                success "Claude CLI installed successfully (official script)"
+                claude_installed=true
             fi
-        else
-            fail "npm is not available, cannot install Claude CLI"
+        fi
+
+        # Strategy 2: Fallback to npm
+        if [ "$claude_installed" = false ] && command -v npm &>/dev/null; then
+            warn "Official script failed, trying npm install..."
+            npm install -g @anthropic-ai/claude-code 2>&1 || true
+            if command -v claude &>/dev/null; then
+                success "Claude CLI installed successfully (npm)"
+                claude_installed=true
+            fi
+        fi
+
+        # All strategies failed
+        if [ "$claude_installed" = false ]; then
+            fail "Claude CLI installation failed"
             echo ""
             echo "    Claude Code is the core Agent runtime for this project."
-            echo "    Without it, the system cannot function."
-            echo "    Please install Node.js (>= 18) and npm first, then run:"
+            echo "    Without it, the system cannot function. Please install manually:"
             echo ""
-            echo "      npm install -g @anthropic-ai/claude-code"
+            echo "      curl -fsSL https://claude.ai/install.sh | sh"
+            echo "      # Or: npm install -g @anthropic-ai/claude-code"
             echo ""
             read -rp "    Press Enter to continue (but subsequent runs may fail)..."
         fi
@@ -1401,7 +1618,7 @@ do_run() {
     fi
     if ! command -v claude &>/dev/null; then
         fail "Claude CLI is not installed — core Agent runtime missing, cannot process user messages"
-        info "  Install: npm install -g @anthropic-ai/claude-code"
+        info "  Install: curl -fsSL https://claude.ai/install.sh | sh"
         has_error=true
     fi
     if [ ! -f "${PROJECT_ROOT}/.env" ]; then

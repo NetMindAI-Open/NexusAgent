@@ -25,14 +25,18 @@ An agent in isolation is a tool. An agent with persistent memory, social identit
 
 ## Key Features
 
+- **Inter-Agent Communication** -- Agents talk to each other via Matrix protocol: create rooms, send messages, @mention specific agents, and coordinate in group chats — all through natural language
 - **Narrative Structure** -- Conversations are routed into semantic storylines maintained across sessions, retrieved by topic similarity rather than chronological order
-- **Hot-Swappable Modules** -- Each capability (chat, social graph, RAG, jobs, skills, memory) is a standalone module with its own DB tables, MCP tools, and lifecycle hooks
+- **Hot-Swappable Modules** -- Each capability (chat, social graph, RAG, jobs, skills, Matrix, memory) is a standalone module with its own DB tables, MCP tools, and lifecycle hooks
+- **Skill Marketplace** -- Browse and install skills from ClawHub via chat: describe what you need, get recommendations, install with one click
 - **Social Network** -- Entity graph tracking people, relationships, expertise, and interaction history with semantic search
 - **Job Scheduling** -- One-shot, cron, periodic, and continuous tasks with dependency DAGs
 - **RAG Knowledge Base** -- Document indexing and semantic retrieval via Gemini File Search
 - **Semantic Memory** -- Long-term episodic memory powered by EverMemOS (MongoDB + Elasticsearch + Milvus)
+- **Cost Tracking** -- Real-time metering of every LLM and embedding call with per-model cost breakdowns
 - **Execution Transparency** -- Every pipeline step visible in real time: what the Agent decided, why, and what changed
 - **Multi-LLM Support** -- Claude, OpenAI, and Gemini via unified adapter layer
+- **Desktop App** -- Electron-based desktop application with auto-updater and one-click service orchestration
 
 ## Quick Start
 
@@ -130,6 +134,7 @@ The main interface uses a three-column layout:
 │          │  Input              │  · Agent Inbox       │
 │          │                     │  · Jobs              │
 │          │                     │  · Skills            │
+│          │                     │  💰 Cost (top bar)   │
 └──────────┴─────────────────────┴──────────────────────┘
 ```
 
@@ -171,6 +176,7 @@ The right panel has multiple tabs showing agent state:
 
 | Document | Description |
 |----------|-------------|
+| [Changelog](./docs/CHANGELOG.md) | What's new in each release |
 | [Examples](./docs/EXAMPLES.md) | Usage patterns: sales agents, monitoring, RAG, job scheduling |
 | [Architecture](./docs/ARCHITECTURE.md) | System architecture, modules, tech stack, project structure |
 | [Development Guide](./docs/DEVELOPMENT.md) | Manual setup, configuration, table management, adding modules |

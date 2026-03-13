@@ -29,6 +29,7 @@ from .instance_decision import (
 from .instance_factory import InstanceFactory
 
 from xyz_agent_context.services.instance_sync_service import InstanceSyncService
+from xyz_agent_context.settings import settings
 
 if TYPE_CHECKING:
     from xyz_agent_context.module import XYZBaseModule
@@ -52,13 +53,14 @@ class ModuleLoader:
 
     # Default static module list
     DEFAULT_MODULE_LIST = [
-        "MemoryModule",  
+        "MemoryModule",
         "AwarenessModule",
         "ChatModule",
         "BasicInfoModule",
         "SocialNetworkModule",
         "JobModule",
         "GeminiRAGModule",
+        "MatrixModule",
     ]
 
     # Always-loaded modules (no Instance record needed, loaded directly)
@@ -181,6 +183,11 @@ class ModuleLoader:
         logger.info("ModuleLoader: Using LLM Instance intelligent decision mode")
         main_narrative = narrative_list[0] if narrative_list else None
         narrative_id = main_narrative.id if main_narrative else None
+
+        # ===== Fast-path: skip LLM decision, load all capability modules directly =====
+        if settings.skip_module_decision_llm:
+            logger.info("ModuleLoader: SKIP_MODULE_DECISION_LLM is enabled, bypassing LLM instance decision")
+            return await self._load_all_capability_modules(main_narrative, working_source=working_source)
 
         # ===== Load Instances from database =====
         current_instances = await self._load_current_instances(main_narrative)
@@ -324,7 +331,7 @@ class ModuleLoader:
         try:
             changes_explanation_dict = json.loads(decision_output.changes_explanation)
         except json.JSONDecodeError:
-            logger.warning(f"Unable to parse changes_explanation JSON, using empty dict")
+            logger.warning("Unable to parse changes_explanation JSON, using empty dict")
             changes_explanation_dict = {}
 
         logger.success(
@@ -343,6 +350,51 @@ class ModuleLoader:
             # Complex Job support
             key_to_id=key_to_id,
             raw_instances=processed_task_instances
+        )
+
+    async def _load_all_capability_modules(
+        self,
+        narrative: Optional["Narrative"],
+        working_source: Optional[str] = None,
+    ) -> ModuleLoadResult:
+        """
+        Fast-path: Load all capability modules + JobModule + SkillModule
+        without making an LLM call.
+
+        Used when SKIP_MODULE_DECISION_LLM=True.  In production, the LLM
+        instance decision always returns the same set of capability modules,
+        so this shortcut saves ~2.5-3s per turn with identical results.
+        """
+        # Load current instances from DB (needed to preserve task module state)
+        current_instances = await self._load_current_instances(narrative)
+
+        # Keep all current instances (capability + task) as-is
+        all_instances = list(current_instances)
+
+        # Ensure JobModule and always-load modules are present
+        all_instances = self._ensure_job_module_available(all_instances)
+        all_instances = self._add_always_load_modules(all_instances)
+
+        # Create Module objects and bind
+        active_instances = self._create_module_objects(all_instances)
+
+        logger.success(
+            f"ModuleLoader: Fast-path complete (LLM skipped), "
+            f"loaded {len(active_instances)} instances"
+        )
+
+        return ModuleLoadResult(
+            active_instances=active_instances,
+            changes_summary={"added": [], "removed": [], "updated": [], "kept": [
+                inst.instance_id for inst in active_instances
+            ]},
+            changes_explanation={},
+            decision_reasoning="LLM decision skipped (SKIP_MODULE_DECISION_LLM=True)",
+            execution_type=ExecutionPath.AGENT_LOOP,
+            direct_trigger=None,
+            relationship_graph="",
+            key_to_id={},
+            raw_instances=[],
         )
 
     async def _load_current_instances(
@@ -364,6 +416,9 @@ class ModuleLoader:
             return []
 
         try:
+            # Ensure agent-level instances exist (auto-creates missing ones like MatrixModule)
+            await self.instance_factory.ensure_agent_instances_exist(self.agent_id)
+
             # Attempt to load from database
             db_instances = await self.instance_factory.load_instances_for_narrative(
                 agent_id=self.agent_id,
@@ -656,7 +711,7 @@ class ModuleLoader:
                 temp_instance = ModuleInstance(
                     instance_id=instance_id,
                     module_class=module_name,
-                    description=f"Always-loaded module (no database record)",
+                    description="Always-loaded module (no database record)",
                     status=InstanceStatus.ACTIVE,
                     agent_id=self.agent_id,
                     dependencies=[],

@@ -119,11 +119,13 @@ def _convert_to_non_streaming_result(message: Any, message_type: str) -> Dict[st
 
     elif message_type == "ResultMessage":
         # Add usage information
-        if hasattr(message, 'usage'):
-            if hasattr(message.usage, 'input_tokens'):
-                result["usage"]["input_tokens"] = message.usage.input_tokens
-            if hasattr(message.usage, 'output_tokens'):
-                result["usage"]["output_tokens"] = message.usage.output_tokens
+        # ResultMessage.usage is dict[str, Any] | None (not an object with attributes)
+        raw_usage = getattr(message, 'usage', None)
+        if isinstance(raw_usage, dict):
+            if "input_tokens" in raw_usage:
+                result["usage"]["input_tokens"] = raw_usage["input_tokens"]
+            if "output_tokens" in raw_usage:
+                result["usage"]["output_tokens"] = raw_usage["output_tokens"]
             if result["usage"]:
                 result["usage"]["total_tokens"] = (
                     result["usage"].get("input_tokens", 0) +
@@ -257,15 +259,36 @@ def _convert_result_to_stream_event(message: Any) -> Dict[str, Any]:
     }
 
     # Add usage info if available
-    if hasattr(message, 'usage'):
+    # ResultMessage.usage is dict[str, Any] | None (not an object with attributes)
+    raw_usage = getattr(message, 'usage', None)
+    if isinstance(raw_usage, dict):
         usage = {}
-        if hasattr(message.usage, 'input_tokens'):
-            usage["input_tokens"] = message.usage.input_tokens
-        if hasattr(message.usage, 'output_tokens'):
-            usage["output_tokens"] = message.usage.output_tokens
+        if "input_tokens" in raw_usage:
+            usage["input_tokens"] = raw_usage["input_tokens"]
+        if "output_tokens" in raw_usage:
+            usage["output_tokens"] = raw_usage["output_tokens"]
+        # Include cache tokens for accurate cost calculation
+        if "cache_creation_input_tokens" in raw_usage:
+            usage["cache_creation_input_tokens"] = raw_usage["cache_creation_input_tokens"]
+        if "cache_read_input_tokens" in raw_usage:
+            usage["cache_read_input_tokens"] = raw_usage["cache_read_input_tokens"]
         if usage:
             usage["total_tokens"] = usage.get("input_tokens", 0) + usage.get("output_tokens", 0)
             data["usage"] = usage
+
+        # Extract model name from usage dict if CLI provides it
+        if "model" in raw_usage:
+            data["model"] = raw_usage["model"]
+
+    # Claude Agent SDK doesn't expose the actual model name.
+    # Use "claude-code" as an honest label; cost comes from sdk_cost_usd, not price table.
+    if "model" not in data:
+        data["model"] = "claude-code"
+
+    # Add SDK-calculated cost (ResultMessage.total_cost_usd)
+    total_cost = getattr(message, 'total_cost_usd', None)
+    if total_cost is not None:
+        data["total_cost_usd"] = total_cost
 
     # Add stop reason
     if hasattr(message, 'stop_reason'):

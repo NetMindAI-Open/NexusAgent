@@ -81,7 +81,7 @@ async def step_2_load_modules(
     # MemoryModule: responsible for EverMemOS writing and other memory management tasks
     memory_module = get_memory_module(ctx.agent_id, ctx.user_id)
     ctx.module_list.append(memory_module)
-    logger.debug(f"  📝 Added MemoryModule to module_list")
+    logger.debug("  📝 Added MemoryModule to module_list")
 
     logger.success(
         f"✅ Instances loaded: count={len(active_instances)}, "

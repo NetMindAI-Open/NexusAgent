@@ -571,6 +571,23 @@ verify_services_health() {
         all_healthy=false
     fi
 
+    # NexusMatrix Server - HTTP health check
+    if is_port_up 8953; then
+        if http_health_check "http://localhost:8953/health" 5; then
+            echo -e "    ${GREEN}●${RESET}  NexusMatrix Server     ${GREEN}Healthy${RESET}  (HTTP OK on /health)"
+        else
+            echo -e "    ${YELLOW}●${RESET}  NexusMatrix Server     ${YELLOW}Port open but not responding to HTTP${RESET}"
+            warnings="${warnings}\n    - NexusMatrix: Port 8953 is open but HTTP requests fail."
+            warnings="${warnings}\n      Check logs: tmux attach -t ${TMUX_SESSION} then Ctrl-b 6"
+            all_healthy=false
+        fi
+    else
+        echo -e "    ${RED}○${RESET}  NexusMatrix Server     ${RED}Not running${RESET}  (port 8953)"
+        warnings="${warnings}\n    - NexusMatrix Server failed to start on port 8953."
+        warnings="${warnings}\n      Check logs: tmux attach -t ${TMUX_SESSION} then Ctrl-b 6"
+        all_healthy=false
+    fi
+
     # MySQL connectivity
     if is_port_up 3306; then
         echo -e "    ${GREEN}●${RESET}  MySQL                  ${GREEN}Running${RESET}  (port 3306)"
@@ -825,7 +842,7 @@ do_install() {
             ;;
     esac
 
-    local total_steps=10
+    local total_steps=11
     local current=0
 
     # --- Step 1: uv ---
@@ -1120,6 +1137,25 @@ do_install() {
             echo "      # Or: npm install -g @anthropic-ai/claude-code"
             echo ""
             read -rp "    Press Enter to continue (but subsequent runs may fail)..."
+        fi
+    fi
+
+    # --- Step 6b: ClawHub CLI (skill registry) ---
+    current=$((current + 1))
+    step "${current}/${total_steps}" "Checking ClawHub CLI (skill registry)"
+    if command -v clawhub &>/dev/null; then
+        success "ClawHub CLI is installed"
+    else
+        if command -v npm &>/dev/null; then
+            info "Installing ClawHub CLI..."
+            npm install -g clawhub 2>&1 || true
+            if command -v clawhub &>/dev/null; then
+                success "ClawHub CLI installed successfully"
+            else
+                warn "ClawHub CLI installation failed (skill install from chat will not work)"
+            fi
+        else
+            warn "npm not found, skipping ClawHub CLI installation"
         fi
     fi
 
@@ -1657,10 +1693,11 @@ do_run() {
     if ! check_port_conflicts \
         "8000:FastAPI Backend" \
         "5173:Frontend Dev" \
-        "7801:MCP Server"; then
+        "7801:MCP Server" \
+        "8953:NexusMatrix Server"; then
         port_warnings=true
         # Collect conflicting port PIDs for potential kill
-        for pair in "8000:FastAPI Backend" "5173:Frontend Dev" "7801:MCP Server"; do
+        for pair in "8000:FastAPI Backend" "5173:Frontend Dev" "7801:MCP Server" "8953:NexusMatrix Server"; do
             local _port="${pair%%:*}"
             if is_port_up "$_port"; then
                 conflict_ports+=("$_port")
@@ -1685,6 +1722,8 @@ do_run() {
                     "job_trigger.py"
                     "node.*vite"
                     "vite.*5173"
+                    "nexus_matrix.main"
+                    "matrix_trigger"
                 )
                 for pat in "${kill_patterns[@]}"; do
                     pkill -f "$pat" 2>/dev/null || true
@@ -1737,7 +1776,7 @@ do_run() {
                 ;;
         esac
     else
-        success "No port conflicts detected (8000, 5173, 7801)"
+        success "No port conflicts detected (8000, 5173, 7801, 8953)"
     fi
 
     # --- Step 0.5: MySQL Docker ---
@@ -1945,6 +1984,16 @@ do_run() {
     tmux send-keys -t "$TMUX_SESSION":mcp "bash start/mcp.sh" C-m
     info "MCP Server        → tmux window 5 [mcp]         Ports 7801-7805"
 
+    # Window 6: NexusMatrix Server
+    tmux new-window -t "$TMUX_SESSION" -n nexus-matrix -c "$PROJECT_ROOT"
+    tmux send-keys -t "$TMUX_SESSION":nexus-matrix "bash start/nexus-matrix.sh" C-m
+    info "NexusMatrix       → tmux window 6 [nexus-matrix] Port 8953"
+
+    # Window 7: MatrixTrigger (Matrix message polling)
+    tmux new-window -t "$TMUX_SESSION" -n matrix-trigger -c "$PROJECT_ROOT"
+    tmux send-keys -t "$TMUX_SESSION":matrix-trigger "bash start/matrix-trigger.sh" C-m
+    info "Matrix Trigger    → tmux window 7 [matrix-trigger]"
+
     tmux select-window -t "$TMUX_SESSION":control
 
     # --- Step 5: Wait for services and verify health ---
@@ -1953,12 +2002,13 @@ do_run() {
     local max_svc_wait=45
     printf "    Waiting for service ports "
     while [ $svc_elapsed -lt $max_svc_wait ]; do
-        # Check key ports: MCP(7801) + FastAPI(8000) + Frontend(5173)
+        # Check key ports: MCP(7801) + FastAPI(8000) + Frontend(5173) + NexusMatrix(8953)
         local ready=0
         is_port_up 7801 && ready=$((ready + 1))
         is_port_up 8000 && ready=$((ready + 1))
         is_port_up 5173 && ready=$((ready + 1))
-        if [ $ready -ge 3 ]; then
+        is_port_up 8953 && ready=$((ready + 1))
+        if [ $ready -ge 4 ]; then
             break
         fi
         printf "."
@@ -2064,6 +2114,7 @@ show_status_panel() {
     check_port "Redis"             "6379"
     check_port "Milvus"            "19530"
     check_port "MCP Server"        "7801"
+    check_port "NexusMatrix"       "8953"  "http://localhost:8953"
     check_port "FastAPI Backend"   "8000"  "http://localhost:8000"
     check_port "Frontend Dev"      "5173"  "http://localhost:5173"
 
@@ -2254,6 +2305,8 @@ do_stop() {
         "npm.*dev.*5173"             # Frontend dev server
         "vite.*5173"                 # Vite (frontend actual process)
         "node.*vite"                 # Vite node process
+        "nexus_matrix.main"          # NexusMatrix Server (port 8953)
+        "matrix_trigger"             # MatrixTrigger (message polling)
     )
     for pat in "${stop_patterns[@]}"; do
         if pgrep -f "$pat" &>/dev/null; then

@@ -65,19 +65,19 @@ is_port_up() {
 show_dashboard() {
     clear
     echo ""
-    echo -e "${G1}    ███╗   ██╗${G2}███████╗${G3}██╗  ██╗${G4}██╗   ██╗${G5}███████╗${RESET}"
-    echo -e "${G1}    ████╗  ██║${G2}██╔════╝${G3}╚██╗██╔╝${G4}██║   ██║${G5}██╔════╝${RESET}"
-    echo -e "${G1}    ██╔██╗ ██║${G2}█████╗  ${G3} ╚███╔╝ ${G4}██║   ██║${G5}███████╗${RESET}"
-    echo -e "${G1}    ██║╚██╗██║${G2}██╔══╝  ${G3} ██╔██╗ ${G4}██║   ██║${G5}╚════██║${RESET}"
-    echo -e "${G1}    ██║ ╚████║${G2}███████╗${G3}██╔╝ ██╗${G4}╚██████╔╝${G5}███████║${RESET}"
-    echo -e "${G1}    ╚═╝  ╚═══╝${G2}╚══════╝${G3}╚═╝  ╚═╝${G4} ╚═════╝ ${G5}╚══════╝${RESET}"
+    echo -e "${G1}    ███╗   ██╗${G2} █████╗ ${G3}██████╗ ${G4}██████╗  ${G5} █████╗ ${RESET}"
+    echo -e "${G1}    ████╗  ██║${G2}██╔══██╗${G3}██╔══██╗${G4}██╔══██╗${G5}██╔══██╗${RESET}"
+    echo -e "${G1}    ██╔██╗ ██║${G2}███████║${G3}██████╔╝${G4}██████╔╝${G5}███████║${RESET}"
+    echo -e "${G1}    ██║╚██╗██║${G2}██╔══██║${G3}██╔══██╗${G4}██╔══██╗${G5}██╔══██║${RESET}"
+    echo -e "${G1}    ██║ ╚████║${G2}██║  ██║${G3}██║  ██║${G4}██║  ██║${G5}██║  ██║${RESET}"
+    echo -e "${G1}    ╚═╝  ╚═══╝${G2}╚═╝  ╚═╝${G3}╚═╝  ╚═╝${G4}╚═╝  ╚═╝${G5}╚═╝  ╚═╝${RESET}"
     echo ""
-    echo -e "${G3}    ███╗   ███╗${G4}██╗${G5}███╗   ██╗${G6}██████╗ ${RESET}"
-    echo -e "${G3}    ████╗ ████║${G4}██║${G5}████╗  ██║${G6}██╔══██╗${RESET}"
-    echo -e "${G3}    ██╔████╔██║${G4}██║${G5}██╔██╗ ██║${G6}██║  ██║${RESET}"
-    echo -e "${G3}    ██║╚██╔╝██║${G4}██║${G5}██║╚██╗██║${G6}██║  ██║${RESET}"
-    echo -e "${G3}    ██║ ╚═╝ ██║${G4}██║${G5}██║ ╚████║${G6}██████╔╝${RESET}"
-    echo -e "${G3}    ╚═╝     ╚═╝${G4}╚═╝${G5}╚═╝  ╚═══╝${G6}╚═════╝ ${RESET}"
+    echo -e "${G3}    ███╗   ██╗${G4}███████╗${G5}██╗  ██╗${G6}██╗   ██╗███████╗${RESET}"
+    echo -e "${G3}    ████╗  ██║${G4}██╔════╝${G5}╚██╗██╔╝${G6}██║   ██║██╔════╝${RESET}"
+    echo -e "${G3}    ██╔██╗ ██║${G4}█████╗  ${G5} ╚███╔╝ ${G6}██║   ██║███████╗${RESET}"
+    echo -e "${G3}    ██║╚██╗██║${G4}██╔══╝  ${G5} ██╔██╗ ${G6}██║   ██║╚════██║${RESET}"
+    echo -e "${G3}    ██║ ╚████║${G4}███████╗${G5}██╔╝ ██╗${G6}╚██████╔╝███████║${RESET}"
+    echo -e "${G3}    ╚═╝  ╚═══╝${G4}╚══════╝${G5}╚═╝  ╚═╝${G6} ╚═════╝ ╚══════╝${RESET}"
     echo ""
 
     # ── Access URLs (prominent display) ──
@@ -113,7 +113,7 @@ show_dashboard() {
 
     # ── Application services status ──
     echo -e "  ${BOLD}  Application Services${RESET}"
-    local app_items=("Frontend:5173" "FastAPI:8000" "MCP:7801" "JobTrigger:-" "Poller:-")
+    local app_items=("Frontend:5173" "FastAPI:8000" "MCP:7801" "NexusMatrix:8953" "JobTrigger:-" "MatrixTrig:-" "Poller:-")
     printf "    "
     for item in "${app_items[@]}"; do
         local name="${item%%:*}"
@@ -154,6 +154,8 @@ do_stop_all() {
         "npm.*dev.*5173"             # Frontend dev server
         "vite.*5173"                 # Vite (frontend actual process)
         "node.*vite"                 # Vite node process
+        "nexus_matrix.main"          # NexusMatrix Server (port 8953)
+        "matrix_trigger"             # MatrixTrigger (message polling)
     )
     for pat in "${patterns[@]}"; do
         if pgrep -f "$pat" &>/dev/null; then
@@ -199,7 +201,7 @@ while true; do
 
     if [ "$AUTO_REFRESH" = true ]; then
         # Auto-refresh mode: refresh every 3 seconds until all core services are ready
-        if is_port_up 5173 && is_port_up 8000 && is_port_up 7801; then
+        if is_port_up 5173 && is_port_up 8000 && is_port_up 7801 && is_port_up 8953; then
             AUTO_REFRESH=false
             continue  # Refresh one last time to show all-green status
         fi

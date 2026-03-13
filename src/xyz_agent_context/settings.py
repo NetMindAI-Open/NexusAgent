@@ -18,6 +18,7 @@ import os
 from pathlib import Path
 from typing import Optional
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Project root directory (3 levels up from src/xyz_agent_context/settings.py)
@@ -54,17 +55,35 @@ class Settings(BaseSettings):
     db_ssl_verify_cert: Optional[str] = None
 
     # ===== Workspace =====
-    base_working_path: str = "./agent_workspace"
+    # Absolute path under user home; immune to cwd differences between
+    # dev server, Electron bundle, and CLI scripts.
+    base_working_path: str = str(Path.home() / ".nexusagent" / "workspaces")
 
     # ===== Embedding =====
     openai_embedding_model: str = "text-embedding-3-small"
 
     # ===== Export Paths =====
-    narrative_markdown_path: str = "./data/narratives"
-    trajectory_path: str = "./data/trajectories"
+    narrative_markdown_path: str = str(Path.home() / ".nexusagent" / "data" / "narratives")
+    trajectory_path: str = str(Path.home() / ".nexusagent" / "data" / "trajectories")
 
     # ===== Auth =====
     admin_secret_key: str = ""
+
+    # ===== Speed Optimization =====
+    # When True, skip the LLM instance decision call in Step 2 and always load
+    # all capability modules directly.  This saves ~2.5-3s per turn since the
+    # LLM call currently always returns the same 4 modules.
+    skip_module_decision_llm: bool = False
+
+    @model_validator(mode="after")
+    def _expand_user_paths(self) -> "Settings":
+        """Expand ~ in path settings so callers don't need to handle it."""
+        for field in ("base_working_path", "narrative_markdown_path", "trajectory_path"):
+            raw = getattr(self, field)
+            expanded = str(Path(raw).expanduser())
+            if expanded != raw:
+                object.__setattr__(self, field, expanded)
+        return self
 
 
 settings = Settings()

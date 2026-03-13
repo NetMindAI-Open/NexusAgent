@@ -51,6 +51,7 @@ try:
     from xyz_agent_context.utils.database_table_management.create_instance_narrative_links_table import InstanceNarrativeLinksTableManager
     from xyz_agent_context.utils.database_table_management.create_instance_awareness_table import InstanceAwarenessTableManager
     from xyz_agent_context.utils.database_table_management.create_instance_event_memory_table import InstanceModuleReportMemoryTableManager, InstanceJsonFormatMemoryTableManager
+    from xyz_agent_context.utils.database_table_management.create_matrix_table import MatrixCredentialsTableManager
     from xyz_agent_context.utils.db_factory import get_db_client
 except ImportError:
     project_root = Path(__file__).resolve().parents[4]
@@ -70,6 +71,7 @@ except ImportError:
     from xyz_agent_context.utils.database_table_management.create_instance_narrative_links_table import InstanceNarrativeLinksTableManager
     from xyz_agent_context.utils.database_table_management.create_instance_awareness_table import InstanceAwarenessTableManager
     from xyz_agent_context.utils.database_table_management.create_instance_event_memory_table import InstanceModuleReportMemoryTableManager, InstanceJsonFormatMemoryTableManager
+    from xyz_agent_context.utils.database_table_management.create_matrix_table import MatrixCredentialsTableManager
     from xyz_agent_context.utils.db_factory import get_db_client
 
 
@@ -93,6 +95,8 @@ TABLE_MANAGERS = {
     "instance_awareness": InstanceAwarenessTableManager,
     "instance_module_report_memory": InstanceModuleReportMemoryTableManager,
     "instance_json_format_memory": InstanceJsonFormatMemoryTableManager,
+    # Matrix tables
+    "matrix_credentials": MatrixCredentialsTableManager,
 }
 
 
@@ -280,7 +284,7 @@ async def test_database_connection() -> bool:
         is_connected = await db.ping()
 
         if is_connected:
-            print(f"Database connection successful")
+            print("Database connection successful")
             return True
         else:
             print("Database connection failed")

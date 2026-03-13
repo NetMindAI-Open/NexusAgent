@@ -173,6 +173,24 @@ class PathExecutionResult(BaseModel):
         description="Agent Loop response list (empty list for DIRECT_TRIGGER)"
     )
 
+    # ========== Token Usage (for cost tracking) ==========
+    input_tokens: int = Field(
+        default=0,
+        description="Total input tokens consumed across all Agent Loop turns"
+    )
+    output_tokens: int = Field(
+        default=0,
+        description="Total output tokens consumed across all Agent Loop turns"
+    )
+    model: str = Field(
+        default="",
+        description="LLM model identifier (from Agent Loop response)"
+    )
+    total_cost_usd: float = Field(
+        default=0.0,
+        description="SDK-calculated cost in USD (Claude Agent SDK provides this directly)"
+    )
+
     # ========== Context Data ==========
     # Context data (for Hook)
     # AGENT_LOOP: From context.ctx_data (ContextData object)

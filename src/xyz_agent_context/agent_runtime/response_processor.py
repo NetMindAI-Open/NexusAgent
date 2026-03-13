@@ -167,14 +167,32 @@ class ResponseProcessor:
             )
 
         if data_type == "response.done":
-            # Agent Loop completion marker (no longer sends ProgressMessage, Step 3 completion is handled by agent_runtime)
+            # Agent Loop completion marker — extract token usage for cost tracking
+            # Claude Agent SDK puts usage in ResultMessage; model is not available,
+            # so we default to the model configured in settings
             usage = data.get("usage", {})
+            input_tokens = usage.get("input_tokens", 0)
+            output_tokens = usage.get("output_tokens", 0)
+            model = data.get("model", "")
+            total_cost_usd = data.get("total_cost_usd")  # SDK-calculated cost
             stop_reason = data.get("stop_reason", "unknown")
-            logger.info(f"  ✅ Agent done: {stop_reason}")
+            logger.info(
+                f"  ✅ Agent done: {stop_reason} model={model or '(sdk)'} "
+                f"(tokens: {input_tokens}+{output_tokens}"
+                f"{f', sdk_cost=${total_cost_usd:.6f}' if total_cost_usd else ''})"
+            )
             return ProcessedResponse(
                 type=ResponseType.DONE,
                 message=None,  # Do not send message to avoid duplicate completion steps
-                state_update=None  # No need to update count on completion
+                state_update={
+                    "method": "accumulate_usage",
+                    "args": {
+                        "input_tokens": input_tokens,
+                        "output_tokens": output_tokens,
+                        "model": model,
+                        "total_cost_usd": total_cost_usd,
+                    },
+                },
             )
 
         # Other types of raw_response_event

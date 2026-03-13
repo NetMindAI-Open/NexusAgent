@@ -51,6 +51,8 @@ try:
     from xyz_agent_context.utils.database_table_management.create_instance_narrative_links_table import InstanceNarrativeLinksTableManager
     from xyz_agent_context.utils.database_table_management.create_instance_awareness_table import InstanceAwarenessTableManager
     from xyz_agent_context.utils.database_table_management.create_instance_event_memory_table import InstanceModuleReportMemoryTableManager, InstanceJsonFormatMemoryTableManager
+    from xyz_agent_context.utils.database_table_management.create_matrix_table import MatrixCredentialsTableManager
+    from xyz_agent_context.utils.database_table_management.create_cost_records_table import create_cost_records_table
     from xyz_agent_context.utils.database_table_management.create_table_base import (
         create_table,
         check_table_exists,
@@ -74,6 +76,8 @@ except ImportError:
     from xyz_agent_context.utils.database_table_management.create_instance_narrative_links_table import InstanceNarrativeLinksTableManager
     from xyz_agent_context.utils.database_table_management.create_instance_awareness_table import InstanceAwarenessTableManager
     from xyz_agent_context.utils.database_table_management.create_instance_event_memory_table import InstanceModuleReportMemoryTableManager, InstanceJsonFormatMemoryTableManager
+    from xyz_agent_context.utils.database_table_management.create_matrix_table import MatrixCredentialsTableManager
+    from xyz_agent_context.utils.database_table_management.create_cost_records_table import create_cost_records_table
     from xyz_agent_context.utils.database_table_management.create_table_base import (
         create_table,
         check_table_exists,
@@ -198,6 +202,14 @@ TABLE_CONFIGS: Dict[str, Tuple[Type, List[Tuple[str, List[str], bool]]]] = {
         InstanceJsonFormatMemoryTableManager,
         []
     ),
+    # ===== Matrix Tables =====
+    "matrix_credentials": (
+        MatrixCredentialsTableManager,
+        [
+            ("idx_is_active", ["is_active"], False),
+            ("idx_next_poll_time", ["next_poll_time"], False),
+        ]
+    ),
 }
 
 
@@ -281,6 +293,20 @@ async def create_all_tables(
         manager_class, indexes = TABLE_CONFIGS[table_name]
         result = await create_single_table(table_name, manager_class, indexes, force)
         results.append(result)
+
+    # Raw-SQL tables (not managed by BaseTableManager)
+    if tables is None or "cost_records" in (tables or []):
+        idx = len(results) + 1
+        print(f"\n[{idx}/{len(tables_to_create) + 1}] Processing table: cost_records (raw SQL)")
+        try:
+            exists = await check_table_exists("cost_records")
+            if exists and not force:
+                results.append(("cost_records", True, "already exists (skipped)"))
+            else:
+                await create_cost_records_table(force=force)
+                results.append(("cost_records", True, "created successfully"))
+        except Exception as e:
+            results.append(("cost_records", False, f"failed: {str(e)[:50]}"))
 
     # Display summary
     print("\n\n" + "="*80)

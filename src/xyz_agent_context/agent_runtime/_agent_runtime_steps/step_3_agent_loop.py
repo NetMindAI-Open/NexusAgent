@@ -151,9 +151,15 @@ async def step_3_agent_loop(
     if not os.path.exists(agent_working_path):
         os.makedirs(agent_working_path)
 
+    # Extract skill-configured env vars from context for runtime injection
+    skill_env_vars = {}
+    if context.ctx_data and context.ctx_data.extra_data:
+        skill_env_vars = context.ctx_data.extra_data.get("skill_env_vars", {})
+
     async for response in ClaudeAgentSDK(working_path=agent_working_path).agent_loop(
         messages=messages,
         mcp_server_urls=ctx.mcp_urls,
+        extra_env=skill_env_vars or None,
     ):
         # Use ResponseProcessor to process responses
         result = response_processor.process(response, state)

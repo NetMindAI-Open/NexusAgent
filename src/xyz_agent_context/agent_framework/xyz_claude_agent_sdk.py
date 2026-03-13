@@ -51,6 +51,7 @@ class ClaudeAgentSDK:
         messages: list[dict[str, Any]],
         mcp_server_urls: dict[str, str],  # Corrected type annotation: should be a dict, not a list
         streaming: bool = True,  # Whether to use streaming output
+        extra_env: dict[str, str] | None = None,  # Additional env vars (e.g., skill-configured API keys)
         **kwargs: Any,
         ) -> AsyncGenerator[dict[str, Any], None]:
 
@@ -134,6 +135,10 @@ class ClaudeAgentSDK:
         # 清除 CLAUDECODE 环境变量，避免嵌套会话检测导致子进程拒绝启动。
         # 当后端从 Claude Code 终端内启动时，子进程会继承此变量。
         cli_env["CLAUDECODE"] = ""
+
+        # Inject skill-configured env vars (e.g., TAVILY_API_KEY, GOG_ACCOUNT)
+        if extra_env:
+            cli_env.update(extra_env)
 
         options = ClaudeAgentOptions(
             system_prompt=system_prompt,

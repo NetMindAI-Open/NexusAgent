@@ -842,7 +842,7 @@ do_install() {
             ;;
     esac
 
-    local total_steps=10
+    local total_steps=11
     local current=0
 
     # --- Step 1: uv ---
@@ -1137,6 +1137,25 @@ do_install() {
             echo "      # Or: npm install -g @anthropic-ai/claude-code"
             echo ""
             read -rp "    Press Enter to continue (but subsequent runs may fail)..."
+        fi
+    fi
+
+    # --- Step 6b: ClawHub CLI (skill registry) ---
+    current=$((current + 1))
+    step "${current}/${total_steps}" "Checking ClawHub CLI (skill registry)"
+    if command -v clawhub &>/dev/null; then
+        success "ClawHub CLI is installed"
+    else
+        if command -v npm &>/dev/null; then
+            info "Installing ClawHub CLI..."
+            npm install -g clawhub 2>&1 || true
+            if command -v clawhub &>/dev/null; then
+                success "ClawHub CLI installed successfully"
+            else
+                warn "ClawHub CLI installation failed (skill install from chat will not work)"
+            fi
+        else
+            warn "npm not found, skipping ClawHub CLI installation"
         fi
     fi
 

@@ -16,6 +16,8 @@ import {
   BookOpen,
   ChevronDown,
   ChevronRight,
+  KeyRound,
+  CircleAlert,
 } from 'lucide-react';
 import { Button } from '@/components/ui';
 import { cn } from '@/lib/utils';
@@ -26,6 +28,7 @@ export function SkillCard({
   onToggle,
   onRemove,
   onStudy,
+  onConfigure,
   isToggling,
   isRemoving,
   isStudying,
@@ -34,6 +37,7 @@ export function SkillCard({
   onToggle: (skill: SkillInfo) => void;
   onRemove: (skill: SkillInfo) => void;
   onStudy: (skill: SkillInfo) => void;
+  onConfigure: (skill: SkillInfo) => void;
   isToggling: boolean;
   isRemoving: boolean;
   isStudying: boolean;
@@ -80,6 +84,19 @@ export function SkillCard({
             <span className="text-[10px] font-mono text-[var(--text-tertiary)]">
               v{skill.version}
             </span>
+          )}
+
+          {/* Env config warning */}
+          {skill.requires_env && skill.requires_env.length > 0 && skill.env_configured === false && (
+            <div
+              className="flex items-center gap-2 mt-2 px-2 py-1.5 rounded-lg bg-[var(--color-warning)]/5 border border-[var(--color-warning)]/10 cursor-pointer hover:bg-[var(--color-warning)]/10 transition-colors"
+              onClick={() => onConfigure(skill)}
+            >
+              <CircleAlert className="w-3 h-3 text-[var(--color-warning)]" />
+              <span className="text-xs text-[var(--color-warning)]">
+                Needs config: {skill.requires_env.join(', ')}
+              </span>
+            </div>
           )}
 
           {/* Study status display */}
@@ -138,6 +155,25 @@ export function SkillCard({
               )}
               {skill.study_status === 'completed' ? 'Re-study' : 'Study'}
             </Button>
+
+            {/* Configure button - shown when skill has env requirements */}
+            {skill.requires_env && skill.requires_env.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onConfigure(skill)}
+                disabled={skill.disabled}
+                className={cn(
+                  'text-xs',
+                  skill.env_configured === false
+                    ? 'text-[var(--color-warning)] hover:bg-[var(--color-warning)]/10'
+                    : 'text-[var(--accent-secondary)] hover:bg-[var(--accent-secondary)]/10'
+                )}
+              >
+                <KeyRound className="w-3 h-3 mr-1.5" />
+                {skill.env_configured === false ? 'Configure' : 'Env'}
+              </Button>
+            )}
 
             <Button
               variant="ghost"
